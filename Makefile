@@ -2,7 +2,7 @@
 PY := backend/.venv/bin
 SHELL := /bin/bash
 
-.PHONY: help setup up down migrate migrate-test seed api worker web test test-backend test-frontend lint demo wallet check-testnet e2e stack
+.PHONY: help setup up down migrate migrate-test seed api worker web test test-backend test-frontend lint demo wallet check-testnet e2e stack lock
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-15s %s\n", $$1, $$2}'
@@ -60,6 +60,9 @@ stack: ## Run the whole app in Docker at http://localhost:8000
 
 demo: ## Scripted terminal walkthrough of the 2-minute demo (API must be running)
 	cd backend && .venv/bin/python -m scripts.demo
+
+lock: ## Regenerate frontend/package-lock.json on Linux (run after any npm install on macOS)
+	docker run --rm -v "$$PWD/frontend":/w -w /tmp node:24-alpine sh -c "cp /w/package.json /w/package-lock.json . && npm install --package-lock-only --no-audit --no-fund && cp package-lock.json /w/"
 
 lint: ## Lint + typecheck everything
 	cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy rampscout
