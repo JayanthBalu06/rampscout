@@ -63,6 +63,25 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-5-5"
     anthropic_timeout_seconds: float = 20.0
 
+    @field_validator(
+        "rpc_url",
+        "rpc_send_url",
+        "signer_address",
+        "route_a_settlement_address",
+        "route_b_settlement_address",
+        "usdc_contract",
+        mode="before",
+    )
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        """Values pasted into hosting dashboards often carry stray whitespace or quotes."""
+        return v.strip().strip("'\"").strip() if isinstance(v, str) else v
+
+    @field_validator("signer_private_key", "anthropic_api_key", mode="before")
+    @classmethod
+    def _strip_secret(cls, v: object) -> object:
+        return v.strip().strip("'\"").strip() if isinstance(v, str) else v
+
     @field_validator("database_url", "test_database_url")
     @classmethod
     def _psycopg_driver(cls, v: str) -> str:

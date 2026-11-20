@@ -46,3 +46,14 @@ def test_embedded_worker_processes_due_watches(make_watch, client, settings):
                 break
             time.sleep(0.1)
     assert client.get(f"/authorizations/{w['id']}").json()["status"] == "notified"
+
+
+def test_pasted_values_are_trimmed():
+    from rampscout.config import Settings
+
+    s = Settings(
+        route_a_settlement_address=" 0x4fF3CFC3e88a508Dd71A8D12d8a79ee43Ec5C23C\n",
+        signer_private_key='"0xabc"\n',
+    )
+    assert s.route_a_settlement_address == "0x4fF3CFC3e88a508Dd71A8D12d8a79ee43Ec5C23C"
+    assert s.signer_private_key.get_secret_value() == "0xabc"
