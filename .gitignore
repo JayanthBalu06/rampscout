@@ -10,3 +10,5 @@ frontend/dist/
 .DS_Store
 *.log
 secrets/
+frontend/test-results/
+frontend/playwright-report/

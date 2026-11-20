@@ -30,7 +30,7 @@ MXN→USDC direction, other chains, real provider APIs (Bitso, etc.), user-paid 
 | Stack | FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL 16 · Python worker process · React 18 + TypeScript + Vite + Tailwind · web3.py for chain |
 | LLM | Claude API with structured outputs (`output_config.format` JSON schema) → `IntentDraft`, effort `low`, server-side refusal fallback. Model from env `ANTHROPIC_MODEL` (default `claude-opus-5-5`). Without a key (or on model error/refusal) a deterministic rules parser drafts instead; the form always works. |
 | Testnet | Base Sepolia. Build against fake signer first; `docs/TESTNET_SETUP.md` walks wallet creation, faucets, RPC. |
-| Hosting | Render blueprint: API web service, worker background service, Postgres, static frontend. |
+| Hosting | Render blueprint: one web service serving the API under `/api` and the built UI (same origin, first-party cookie), a worker, and Postgres. |
 | Extras | Reliability "chaos" controls, decision timeline UI, architecture diagram, GitHub Actions CI with Postgres service. |
 
 ## 3. Domain model and math

@@ -71,15 +71,16 @@ rampscout/
 **Exit:** auto watch fires on tick 1, a real Base Sepolia tx is verified, receipt shows hash + simulated payout. Chaos "drop broadcast response" + worker restart reconciles to the same hash.
 
 ## Phase 4 — Polish, hosting, handoff (≈10 h)
-- [ ] UI pass: route cards with fee waterfall, "higher rate ≠ more pesos" callout, decision timeline, receipt side-by-side, demo control drawer with chaos toggles, settlement banner, dark mode, a11y (labels, focus, contrast, live region for status changes)
-- [ ] Claude one-line decision summaries on timeline events (optional, cached)
-- [ ] Architecture diagram (SVG) + agent-loop diagram in README
-- [ ] README: pitch, real-vs-simulated table, architecture, agent loop & limits, reliability guarantees (each mapped to a test), setup/seed/test/demo commands, env vars, Future section, "later experiment: backtest watch vs immediate"
-- [ ] `render.yaml`; deploy; daily onchain cap; smoke test hosted URL
-- [ ] `docs/DEMO_SCRIPT.md` (2-min path) + `scripts/demo.py` CLI walkthrough
+- [x] UI pass: route cards with fee waterfall, "higher rate ≠ more pesos" callout, decision timeline, receipt side-by-side, demo control drawer with chaos toggles, settlement banner, dark mode, a11y (labels, focus, contrast, live region for status changes)
+- [ ] Claude one-line decision summaries on timeline events (optional; skipped, timeline reasons are already plain-language)
+- [x] Architecture diagram (SVG) + agent-loop diagram in README
+- [x] README: pitch, real-vs-simulated table, architecture, agent loop & limits, reliability guarantees (each mapped to a test), setup/seed/test/demo commands, env vars, Future section, "later experiment: backtest watch vs immediate"
+- [x] `render.yaml`, Dockerfile, daily onchain cap; single-origin server (API under /api + UI)
+- [ ] **You:** deploy on Render and smoke-test the hosted URL
+- [x] `docs/DEMO_SCRIPT.md` (2-min path) + `scripts/demo.py` CLI walkthrough
 - [ ] **You:** record 2–3 min video of a real testnet run (captioned for accessibility); make repo public
 
-## Buffer (≈6 h) — Playwright smoke, backtest stub, bug fixes
+## Buffer (≈6 h): Playwright smoke ✅ (5 journeys + CI job), backtest (future work), bug fixes
 
 ## Things I need from you, and when
 | When | What |

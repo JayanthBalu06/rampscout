@@ -2,7 +2,7 @@
 PY := backend/.venv/bin
 SHELL := /bin/bash
 
-.PHONY: help setup up down migrate migrate-test seed api worker web test test-backend test-frontend lint demo wallet check-testnet e2e
+.PHONY: help setup up down migrate migrate-test seed api worker web test test-backend test-frontend lint demo wallet check-testnet e2e stack
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-15s %s\n", $$1, $$2}'
@@ -50,6 +50,16 @@ test-backend:
 
 test-frontend:
 	cd frontend && npm test
+
+e2e: ## Browser tests against the full stack (starts it with docker compose)
+	docker compose --profile app up -d --build --wait
+	cd frontend && npx playwright install chromium && npx playwright test
+
+stack: ## Run the whole app in Docker at http://localhost:8000
+	docker compose --profile app up --build
+
+demo: ## Scripted terminal walkthrough of the 2-minute demo (API must be running)
+	cd backend && .venv/bin/python -m scripts.demo
 
 lint: ## Lint + typecheck everything
 	cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy rampscout

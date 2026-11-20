@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import time
 import uuid
+from collections import defaultdict, deque
 from typing import Annotated
 
 from fastapi import APIRouter, Header, Response
@@ -34,12 +36,25 @@ from rampscout.services.authorizations import (
 from rampscout.settlement.factory import get_settler
 
 router = APIRouter(tags=["agent"])
+_parse_log: dict[uuid.UUID, deque[float]] = defaultdict(deque)
+
+
+def _rate_limit(session_id: uuid.UUID, per_hour: int) -> None:
+    """Per-session cap on model calls so a public demo can't run up the API bill."""
+    now = time.monotonic()
+    log = _parse_log[session_id]
+    while log and now - log[0] > 3600:
+        log.popleft()
+    if len(log) >= per_hour:
+        raise AppError(429, "rate_limited", "Too many drafts this hour; use the form instead")
+    log.append(now)
 
 
 @router.post("/intents/parse", response_model=IntentParseOut)
 def parse_intent(body: IntentParseIn, db: DbSession, session: CurrentSession) -> IntentParseOut:
     """Draft only: returns editable terms + missing/ambiguous fields. Creates nothing."""
     settings = get_settings()
+    _rate_limit(session.id, settings.intent_parses_per_hour)
     destinations = list(
         db.scalars(select(Destination).where(Destination.owner_id == session.owner_id)).all()
     )

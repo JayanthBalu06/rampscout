@@ -1,3 +1,5 @@
+# `docker compose up -d` -> Postgres only (local dev with `make api/worker/web`).
+# `docker compose --profile app up --build` -> full stack at http://localhost:8000
 services:
   postgres:
     image: postgres:16-alpine
@@ -15,5 +17,29 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+
+  web:
+    profiles: ["app"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://rampscout:rampscout@postgres:5432/rampscout
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    profiles: ["app"]
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://rampscout:rampscout@postgres:5432/rampscout
+    command: ["sh", "-c", "sleep 5 && python -m rampscout.worker.main"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:

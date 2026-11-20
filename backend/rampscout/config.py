@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
         "postgresql+psycopg://rampscout:rampscout@localhost:5432/rampscout_test"
     )
     cors_origins: str = "http://localhost:5173"
+    intent_parses_per_hour: int = 30  # per demo session; protects the model API key
     cookie_secure: bool = False  # true when the UI is served cross-site over HTTPS
 
     demo_mode: bool = True
@@ -56,6 +57,15 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr = SecretStr("")
     anthropic_model: str = "claude-opus-5-5"
     anthropic_timeout_seconds: float = 20.0
+
+    @field_validator("database_url", "test_database_url")
+    @classmethod
+    def _psycopg_driver(cls, v: str) -> str:
+        """Hosts (Render, Heroku) hand out postgres:// URLs; we use the psycopg 3 driver."""
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix) :]
+        return v
 
     @property
     def cors_origin_list(self) -> list[str]:
