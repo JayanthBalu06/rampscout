@@ -162,7 +162,7 @@ What was actually run while building this, as opposed to what is only designed:
 | Full stack in Docker (`make stack`) and the scripted demo (`make demo`) | ✅ |
 | Base Sepolia network facts (chain ID, USDC contract, decimals) | ✅ verified live via public RPC and official docs |
 | Base Sepolia transaction build and sign, Transfer-log parsing | ✅ offline tests (EIP-1559 tx recovered to the signer) |
-| **Live Base Sepolia transfer** | ⏳ needs a funded test wallet ([setup](docs/TESTNET_SETUP.md)) |
+| **Live Base Sepolia transfer** | ✅ auto watch matched at tick 1, revalidated, sent 6 test USDC (1:100 scale) to Route B's wallet, verified by receipt and Transfer log: [`0xc9c1…7660`](https://sepolia.basescan.org/tx/0xc9c16521aa3513dc7e05ae71c91213aa987427c4ac829958e29a35418f237660) (block 61330798) |
 | **Claude drafting against the live API** | ⏳ needs `ANTHROPIC_API_KEY`; covered by mocked tests, and the rules parser ran instead |
 | GitHub Actions CI (lint, types, 91 backend tests on Postgres, unit tests, Playwright E2E) | ✅ green on GitHub |
 | Render deploy | ⏳ blueprint ready, not yet deployed |
