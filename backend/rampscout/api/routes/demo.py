@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Response
 
+from rampscout.agent.evaluate import run_due
 from rampscout.api.deps import DbSession
 from rampscout.api.errors import AppError
 from rampscout.api.presenters import clock_out, settlement_out
-from rampscout.api.schemas import ChaosIn, DemoStateOut
+from rampscout.api.schemas import AdvanceOut, ChaosIn, DemoStateOut, EvaluationOut
 from rampscout.api.session_dep import CurrentSession, set_session_cookie
 from rampscout.config import get_settings
 from rampscout.db.models import DemoSession
@@ -36,14 +37,23 @@ def demo_state(session: CurrentSession) -> DemoStateOut:
     return _state(session)
 
 
-@router.post("/advance", response_model=DemoStateOut)
-def demo_advance(db: DbSession, session: CurrentSession) -> DemoStateOut:
-    """Advance the fixture clock one tick. (Phase 2: also runs one worker evaluation.)"""
+@router.post("/advance", response_model=AdvanceOut)
+def demo_advance(db: DbSession, session: CurrentSession) -> AdvanceOut:
+    """Advance the fixture clock one tick, then run one worker evaluation for this session."""
     _require_demo()
-    advance_clock(db, session, get_settings())
+    settings = get_settings()
+    advance_clock(db, session, settings)
     db.commit()
+    outcomes = run_due(settings, session_id=session.id)
     db.refresh(session)
-    return _state(session)
+    state = _state(session)
+    return AdvanceOut(
+        **state.model_dump(),
+        evaluations=[
+            EvaluationOut(authorization_id=o.authorization_id, status=o.status, reason=o.reason)
+            for o in outcomes
+        ],
+    )
 
 
 @router.post("/reset", response_model=DemoStateOut)

@@ -7,7 +7,7 @@ from sqlalchemy import text
 from rampscout.api import errors
 from rampscout.api.deps import DbSession
 from rampscout.api.presenters import settlement_out
-from rampscout.api.routes import demo, quotes
+from rampscout.api.routes import authorizations, demo, quotes
 from rampscout.api.schemas import SettlementOut
 from rampscout.config import get_settings
 
@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
     )
     errors.install(app)
     app.include_router(quotes.router)
+    app.include_router(authorizations.router)
     app.include_router(demo.router)
 
     @app.get("/health")

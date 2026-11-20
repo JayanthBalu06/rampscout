@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,12 +25,19 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # true when the UI is served cross-site over HTTPS
 
     demo_mode: bool = True
+    # fixture: each demo session has a manually advanced clock. system: wall clock.
+    clock_mode: Literal["fixture", "system"] = "fixture"
     demo_clock_start: datetime = datetime.fromisoformat("2026-11-27T17:00:00+00:00")
     demo_tick_seconds: int = 900
     quote_ttl_seconds: int = 120
     safety_margin_seconds: int = 120
     provider_timeout_ms: int = 1500
     poll_interval_seconds: int = 30
+    worker_loop_seconds: float = 2.0
+
+    # User-approved limits the agent can never exceed.
+    max_authorization_usdc: Decimal = Decimal("1000")
+    max_watch_days: int = 7
 
     rpc_url: str = ""
     expected_chain_id: int = 84532
@@ -44,7 +52,8 @@ class Settings(BaseSettings):
     explorer_tx_url: str = "https://sepolia.basescan.org/tx/"
 
     anthropic_api_key: SecretStr = SecretStr("")
-    anthropic_model: str = "claude-haiku-5-5"
+    anthropic_model: str = "claude-opus-5-5"
+    anthropic_timeout_seconds: float = 20.0
 
     @property
     def cors_origin_list(self) -> list[str]:

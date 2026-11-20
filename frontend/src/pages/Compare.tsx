@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { Destination, QuotesResponse } from '../api/types'
 import { RouteCard } from '../components/RouteCard'
@@ -46,9 +46,13 @@ export function Compare({ refreshKey }: { refreshKey: number }) {
     }
   }, [destination, amount, deadlineLocal, tz])
 
+  // Re-quote when the destination loads or the demo clock / chaos flags change.
+  const fetchRef = useRef(fetchQuotes)
   useEffect(() => {
-    void fetchQuotes()
-    // Re-quote when the demo clock or chaos flags change.
+    fetchRef.current = fetchQuotes
+  })
+  useEffect(() => {
+    void fetchRef.current()
   }, [destination, refreshKey])
 
   // Ordering only (badge placement); money values themselves are never parsed to numbers.

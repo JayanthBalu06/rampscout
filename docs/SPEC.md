@@ -28,7 +28,7 @@ MXN→USDC direction, other chains, real provider APIs (Bitso, etc.), user-paid 
 | Topic | Decision |
 |---|---|
 | Stack | FastAPI + SQLAlchemy 2 + Alembic + PostgreSQL 16 · Python worker process · React 18 + TypeScript + Vite + Tailwind · web3.py for chain |
-| LLM | Claude API, tool-use with a strict JSON schema → `IntentDraft`. Model from env `ANTHROPIC_MODEL` (default `claude-haiku-5-5` for speed; `claude-sonnet-5-5` acceptable). Form-only path works with no key. |
+| LLM | Claude API with structured outputs (`output_config.format` JSON schema) → `IntentDraft`, effort `low`, server-side refusal fallback. Model from env `ANTHROPIC_MODEL` (default `claude-opus-5-5`). Without a key (or on model error/refusal) a deterministic rules parser drafts instead; the form always works. |
 | Testnet | Base Sepolia. Build against fake signer first; `docs/TESTNET_SETUP.md` walks wallet creation, faucets, RPC. |
 | Hosting | Render blueprint: API web service, worker background service, Postgres, static frontend. |
 | Extras | Reliability "chaos" controls, decision timeline UI, architecture diagram, GitHub Actions CI with Postgres service. |
@@ -181,7 +181,8 @@ All endpoints are bound to the demo session cookie (`rs_session`, created on fir
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/quotes` | `{amount_usdc, corridor:"USDC-MXN", destination_id, deadline?}` → `{quotes:[ranked], excluded:[{route_id, reason}], provider_errors:[…], clock:{now, tick}, settlement:{mode, chain_id}}` |
-| POST | `/intents/parse` | `{text, display_tz?}` → `{draft: IntentDraft, missing:[field], ambiguities:[{field, question}], source:"claude"\|"rules"}`. Creates nothing. Without a key → 200 with `source:"unavailable"` so the UI shows the form. |
+| POST | `/intents/parse` | `{text}` → `{draft, missing, ambiguities, assumptions, source: "claude"\|"rules"}`. Creates nothing. |
+| POST | `/authorizations/preview` | Same body as `/authorizations`; resolves the deadline and validates limits for the review screen. Creates nothing. |
 | POST | `/authorizations` | Header `Idempotency-Key`. Body: reviewed terms + `mode`. `immediate` requires `selected_quote_id`, and that quote must still be current (else **409 `quote_changed`** with the fresh quote → UI asks for fresh confirmation). Same key + same terms → the original response. Same key + different terms → **422**. |
 | GET | `/authorizations/{id}` | Terms (with tz-rendered deadline), status, `last_check_at`, `next_check_at`, `last_reason`, ordered events, receipt `{execution, tx_hash, explorer_url, onchain_amount, settlement_mode, quoted_net_mxn, simulated_payout_mxn, payout_status}` |
 | GET | `/authorizations` | List for the session (watch dashboard) |
@@ -258,7 +259,7 @@ The chain ID, USDC address, and explorer above come from memory and **must be re
 | W4 | Deadline reached → `expired`, never executes even if a later quote qualifies |
 | W5 | Stale quote: matched quote expires before signing → refresh + revalidate; if the refreshed quote is below target → claim released, still watching |
 | W6 | Incomplete terms (missing min/deadline/destination) → 422; amount ≤ 0 → 422; deadline in past → 422 |
-| W7 | Intent parse without API key returns `unavailable`; with mocked Claude returns draft + `missing` |
+| W7 | Intent parse without API key uses the rules parser (`source: "rules"`) and resolves the brief's sentence exactly; with mocked Claude returns a server-validated draft + `missing`; model refusal falls back to rules |
 | W8 | Immediate mode with a changed/expired quote id → 409 `quote_changed` |
 | S1 | Two workers evaluate the same due watch concurrently (threads, separate connections) → exactly one execution, one signer call |
 | S2 | Same idempotency key posted twice concurrently → one authorization, identical responses; same key + different terms → 422 |

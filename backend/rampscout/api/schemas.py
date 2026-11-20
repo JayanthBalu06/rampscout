@@ -189,3 +189,182 @@ class DemoStateOut(BaseModel):
     clock: ClockOut
     chaos: dict[str, bool]
     settlement: SettlementOut
+
+
+# ---------- intents ----------
+
+
+class IntentParseIn(Strict):
+    text: str
+
+    @model_validator(mode="after")
+    def _len(self) -> IntentParseIn:
+        if not self.text.strip():
+            raise ValueError("text must not be empty")
+        if len(self.text) > 1000:
+            raise ValueError("text must be at most 1000 characters")
+        return self
+
+
+class AmbiguityOut(BaseModel):
+    field: str
+    question: str
+
+
+class IntentDraftOut(BaseModel):
+    amount: str | None
+    currency: str | None
+    min_payout_mxn: str | None
+    destination_id: str | None
+    destination_alias: str | None
+    deadline_local: str | None
+    time_zone: str | None
+    mode: Literal["notify", "auto"]
+
+
+class IntentParseOut(BaseModel):
+    draft: IntentDraftOut
+    deadline_utc: datetime | None
+    deadline_display: str | None
+    missing: list[str]
+    ambiguities: list[AmbiguityOut]
+    assumptions: list[str]
+    source: Literal["claude", "rules"]
+    model: str | None
+    model_note: str | None
+    creates_authorization: Literal[False] = False
+
+
+# ---------- authorizations ----------
+
+
+class AuthorizationIn(Strict):
+    mode: Literal["immediate", "notify", "auto"]
+    amount_usdc: UsdcIn
+    currency: Literal["USDC"] = "USDC"
+    min_payout_mxn: MxnIn
+    destination_id: uuid.UUID
+    deadline: AwareDatetime | None = None
+    deadline_local: NaiveDatetime | None = None
+    time_zone: str
+    selected_quote_id: str | None = None
+    intent_text: str | None = None
+
+    @model_validator(mode="after")
+    def _shape(self) -> AuthorizationIn:
+        if self.deadline is not None and self.deadline_local is not None:
+            raise ValueError("give either deadline or deadline_local, not both")
+        if (
+            self.mode in ("notify", "auto")
+            and self.deadline is None
+            and self.deadline_local is None
+        ):
+            raise ValueError("a watch needs a deadline")
+        if self.mode == "immediate" and not self.selected_quote_id:
+            raise ValueError("immediate mode requires selected_quote_id")
+        if self.mode != "immediate" and self.selected_quote_id:
+            raise ValueError("selected_quote_id is only valid for immediate mode")
+        if self.intent_text is not None and len(self.intent_text) > 1000:
+            raise ValueError("intent_text must be at most 1000 characters")
+        return self
+
+
+class TermsOut(BaseModel):
+    amount_usdc: Dec
+    currency: str
+    min_payout_mxn: Dec
+    destination: DestinationOut
+    deadline_utc: datetime | None
+    deadline_display: str | None
+    time_zone: str
+    selected_quote_id: str | None
+
+
+class EventOut(BaseModel):
+    seq: int
+    at: datetime
+    kind: str
+    reason: str
+    best_quote_id: str | None
+    best_route: str | None
+    best_net_mxn: Dec | None
+    payload: dict[str, Any]
+
+
+class ExecutionOut(BaseModel):
+    id: uuid.UUID
+    quote_id: str
+    route_id: str
+    input_usdc: Dec
+    quoted_net_mxn: Dec
+    onchain_amount_usdc: Dec
+    transfer_scale: str
+    settlement_mode: str
+    chain_id: int | None
+    token_contract: str | None
+    recipient_address: str | None
+    chain_status: str
+    tx_hash: str | None
+    explorer_url: str | None
+    block_number: int | None
+    payout_status: str
+    payout_mxn: Dec | None
+    payout_reference: str | None
+    state_label: str
+
+
+class AuthorizationOut(BaseModel):
+    id: uuid.UUID
+    mode: str
+    status: str
+    version: int
+    can_cancel: bool
+    terms: TermsOut
+    intent_text: str | None
+    confirmed_at: datetime
+    closed_at: datetime | None
+    last_check_at: datetime | None
+    next_check_at: datetime | None
+    last_reason: str | None
+    last_best_route: str | None
+    last_best_net_mxn: Dec | None
+    events: list[EventOut]
+    execution: ExecutionOut | None
+    executed_quote: QuoteOut | None
+    clock: ClockOut
+
+
+class NotificationOut(BaseModel):
+    id: uuid.UUID
+    authorization_id: uuid.UUID
+    kind: str
+    title: str
+    body: str
+    at: datetime
+    read: bool
+
+
+class EvaluationOut(BaseModel):
+    authorization_id: uuid.UUID
+    status: str
+    reason: str
+
+
+class AdvanceOut(DemoStateOut):
+    evaluations: list[EvaluationOut]
+
+
+class PreviewOut(BaseModel):
+    mode: str
+    amount_usdc: Dec
+    min_payout_mxn: Dec
+    destination: DestinationOut
+    deadline_utc: datetime | None
+    deadline_display: str | None
+    time_zone: str
+    onchain_amount_usdc: Dec
+    transfer_scale: str
+    settlement: SettlementOut
+    current_best_route: str | None
+    current_best_net_mxn: Dec | None
+    meets_target_now: bool

@@ -13,7 +13,15 @@ from rampscout.config import Settings, get_settings
 from rampscout.db import session as db_session
 
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TABLES = ["quote_snapshots", "destinations", "demo_sessions"]
+TABLES = [
+    "executions",
+    "notifications",
+    "decision_events",
+    "authorizations",
+    "quote_snapshots",
+    "destinations",
+    "demo_sessions",
+]
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -53,3 +61,33 @@ def client() -> Iterator[TestClient]:
 @pytest.fixture
 def destination_id(client: TestClient) -> str:
     return str(client.get("/destinations").json()[0]["id"])
+
+
+DEADLINE_5PM = {"deadline_local": "2026-11-27T17:00:00", "time_zone": "America/Mexico_City"}
+
+
+@pytest.fixture
+def make_watch(client, destination_id):
+    """POST an authorization; returns the parsed response (raises on non-2xx)."""
+    counter = {"n": 0}
+
+    def _make(mode="notify", min_payout="10000", key=None, expect=201, **overrides):
+        counter["n"] += 1
+        body = {
+            "mode": mode,
+            "amount_usdc": "600",
+            "min_payout_mxn": min_payout,
+            "destination_id": destination_id,
+            **DEADLINE_5PM,
+            **overrides,
+        }
+        body = {k: v for k, v in body.items() if v is not None}
+        r = client.post(
+            "/authorizations",
+            json=body,
+            headers={"Idempotency-Key": key or f"test-{counter['n']}"},
+        )
+        assert r.status_code == expect, r.text
+        return r.json()
+
+    return _make

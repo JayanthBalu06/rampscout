@@ -102,3 +102,30 @@ def snapshot_row(
         issued_at=q.issued_at,
         expires_at=q.expires_at,
     )
+
+
+def snapshot_to_quote(s: QuoteSnapshot) -> Quote:
+    """Rebuild a domain quote from its snapshot (recomputing the payout from stored terms)."""
+    from rampscout.domain.pricing import compute_payout
+
+    breakdown = compute_payout(
+        input_usdc=s.input_usdc,
+        rate_mxn_per_usdc=s.rate_mxn_per_usdc,
+        usdc_fee=s.usdc_fee,
+        mxn_withdrawal_fee=s.mxn_withdrawal_fee,
+        gas_cost_usdc=s.gas_cost_usdc,
+    )
+    if breakdown.net_mxn != s.net_mxn:
+        raise ValueError(f"snapshot {s.quote_id} payout does not reproduce")
+    return Quote(
+        quote_id=s.quote_id,
+        provider_id=s.provider_id,
+        route_id=s.route_id,
+        route_name=s.route_name,
+        breakdown=breakdown,
+        supported_rails=frozenset(s.supported_rails),
+        eta=timedelta(seconds=s.eta_seconds),
+        issued_at=s.issued_at,
+        expires_at=s.expires_at,
+        source=s.source,
+    )

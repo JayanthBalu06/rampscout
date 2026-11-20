@@ -85,3 +85,130 @@ export interface DemoState {
   chaos: Record<string, boolean>
   settlement: Settlement
 }
+
+export type Mode = 'immediate' | 'notify' | 'auto'
+
+export interface IntentDraft {
+  amount: Decimal | null
+  currency: string | null
+  min_payout_mxn: Decimal | null
+  destination_id: string | null
+  destination_alias: string | null
+  deadline_local: string | null
+  time_zone: string | null
+  mode: 'notify' | 'auto'
+}
+
+export interface IntentParseResponse {
+  draft: IntentDraft
+  deadline_utc: string | null
+  deadline_display: string | null
+  missing: string[]
+  ambiguities: Array<{ field: string; question: string }>
+  assumptions: string[]
+  source: 'claude' | 'rules'
+  model: string | null
+  model_note: string | null
+}
+
+export interface AuthorizationRequest {
+  mode: Mode
+  amount_usdc: Decimal
+  min_payout_mxn: Decimal
+  destination_id: string
+  deadline_local?: string
+  time_zone: string
+  selected_quote_id?: string
+  intent_text?: string
+}
+
+export interface PreviewResponse {
+  mode: Mode
+  amount_usdc: Decimal
+  min_payout_mxn: Decimal
+  destination: Destination
+  deadline_utc: string | null
+  deadline_display: string | null
+  time_zone: string
+  onchain_amount_usdc: Decimal
+  transfer_scale: Decimal
+  settlement: Settlement
+  current_best_route: string | null
+  current_best_net_mxn: Decimal | null
+  meets_target_now: boolean
+}
+
+export interface DecisionEvent {
+  seq: number
+  at: string
+  kind: string
+  reason: string
+  best_quote_id: string | null
+  best_route: string | null
+  best_net_mxn: Decimal | null
+  payload: Record<string, unknown>
+}
+
+export interface Execution {
+  id: string
+  quote_id: string
+  route_id: string
+  input_usdc: Decimal
+  quoted_net_mxn: Decimal
+  onchain_amount_usdc: Decimal
+  transfer_scale: Decimal
+  settlement_mode: 'testnet' | 'simulated'
+  chain_id: number | null
+  token_contract: string | null
+  recipient_address: string | null
+  chain_status: string
+  tx_hash: string | null
+  explorer_url: string | null
+  block_number: number | null
+  payout_status: string
+  payout_mxn: Decimal | null
+  payout_reference: string | null
+  state_label: string
+}
+
+export interface Authorization {
+  id: string
+  mode: Mode
+  status: string
+  version: number
+  can_cancel: boolean
+  terms: {
+    amount_usdc: Decimal
+    currency: string
+    min_payout_mxn: Decimal
+    destination: Destination
+    deadline_utc: string | null
+    deadline_display: string | null
+    time_zone: string
+    selected_quote_id: string | null
+  }
+  intent_text: string | null
+  confirmed_at: string
+  closed_at: string | null
+  last_check_at: string | null
+  next_check_at: string | null
+  last_reason: string | null
+  last_best_route: string | null
+  last_best_net_mxn: Decimal | null
+  events: DecisionEvent[]
+  execution: Execution | null
+  executed_quote: Quote | null
+  clock: ClockInfo
+}
+
+export interface AppNotification {
+  id: string
+  authorization_id: string
+  kind: string
+  title: string
+  body: string
+  at: string
+  read: boolean
+}
+
+export const TERMINAL_STATUSES = new Set(['notified', 'completed', 'canceled', 'expired', 'requote_required', 'failed'])

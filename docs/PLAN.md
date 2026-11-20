@@ -46,14 +46,14 @@ rampscout/
 **Exit:** browser shows B beating A at 600 USDC with exact numbers.
 
 ## Phase 2 — Confirmed watches + agent (≈8 h)
-- [ ] Tables: authorizations, decision_events, notifications, executions (skeleton)
-- [ ] `POST /authorizations` (idempotency, terms_hash, validation), `GET`, `cancel`, list
-- [ ] `evaluate_watch()` shared function; worker loop with `FOR UPDATE SKIP LOCKED`
-- [ ] `/demo/advance` running one synchronous evaluation; `/demo/reset`
-- [ ] Notify path end-to-end; expiry; cancel conflict
-- [ ] Intent parser: Claude tool-use with `IntentDraft` schema, ambiguity questions, demo-clock-aware date resolution (server re-resolves `deadline_local` + tz with zoneinfo); rules fallback; `unavailable` without key
-- [ ] Watch builder + review screen; watch detail with last/next check + reason (plain)
-- [ ] Tests W1–W8
+- [x] Tables: authorizations, decision_events, notifications, executions (skeleton)
+- [x] `POST /authorizations` (idempotency, terms_hash, validation), `GET`, `cancel`, list
+- [x] `evaluate_watch()` shared function; worker loop with `FOR UPDATE SKIP LOCKED`
+- [x] `/demo/advance` running one synchronous evaluation; `/demo/reset`
+- [x] Notify path end-to-end; expiry; cancel conflict
+- [x] Intent parser: Claude tool-use with `IntentDraft` schema, ambiguity questions, demo-clock-aware date resolution (server re-resolves `deadline_local` + tz with zoneinfo); rules fallback; `unavailable` without key
+- [x] Watch builder + review screen; watch detail with last/next check + reason (plain)
+- [x] Tests W1–W8
 **Exit:** create 10,000 MXN Notify watch → tick 0 waits → advance → notified. Close browser, reopen, state intact.
 
 ## Phase 3 — Settlement (≈10 h)  ← the riskiest phase, start early on day 2
