@@ -10,7 +10,7 @@
 | 0:50 | **Review terms**. Point at the exact deadline, total debit and minimum. Choose **Auto-convert**. **Confirm**. | "I approve exact terms: 600 USDC in, at least MX$10,000 out, Friday 5:00 PM Mexico City time, my BBVA account. Notify is the default. I'm opting into auto." |
 | 1:05 | Watch page: first decision. | "First check: best is B at MX$9,993.25, MX$6.75 short. So it waits, and it shows when it'll check next. This lives in Postgres and the worker, so closing the browser changes nothing." |
 | 1:15 | **Advance 1 tick**. | "Fifteen demo minutes later B moves to 16.80, MX$10,023.20. The agent claims the watch, fetches a fresh quote and re-checks every limit right before signing. If anything had changed, it would release the claim and keep watching." |
-| 1:30 | **Receipt**: click the tx hash. | "Here's a real USDC transfer on Base Sepolia, scaled 1:100 for faucet limits, verified by its receipt and Transfer log. Peso conversion and the bank deposit are simulated, and labeled that way." |
+| 1:30 | **Receipt**: click the tx hash. | "Here's a real USDC transfer on Base Sepolia, scaled down for faucet limits, verified by its receipt and Transfer log. Peso conversion and the bank deposit are simulated, and labeled that way." |
 | 1:45 | Point at the quoted vs simulated payout panel. Optional: tick **Lose next broadcast response**, convert again, click **Restart worker**. | "Quoted MX$10,023.20, paid MX$10,023.20. And if the network response is lost mid-payment, it never signs twice: it saved the transaction before sending and reconciles by the original hash." |
 
 ## Alternative opening: Send (live market data)

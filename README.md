@@ -148,7 +148,7 @@ make web                   # Vite on :5173, proxies /api → :8000
 **Tests:**
 
 ```bash
-make test                  # 120 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
+make test                  # 119 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
 make lint                  # ruff, mypy (strict on the domain layer), oxlint, tsc
 make e2e                   # 7 Playwright journeys against the Docker stack
 ```
