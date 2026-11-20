@@ -57,16 +57,17 @@ rampscout/
 **Exit:** create 10,000 MXN Notify watch → tick 0 waits → advance → notified. Close browser, reopen, state intact.
 
 ## Phase 3 — Settlement (≈10 h)  ← the riskiest phase, start early on day 2
-- [ ] `Signer` protocol; `FakeSigner` (deterministic hashes, records calls, drop-response chaos)
-- [ ] Execute: claim → refresh quote → full revalidation → unique execution → advisory lock → sign → persist+commit → broadcast
-- [ ] Reconciler on worker start and each loop; identical-bytes rebroadcast; Transfer-log verification
-- [ ] Simulated payout with retry-by-execution-id; `fail_next_payout` chaos
-- [ ] Immediate "Convert now" path incl. 409 `quote_changed`
-- [ ] Settlement health check → simulated mode + banner
-- [ ] Receipt screen
-- [ ] Tests S1–S7
+- [x] `Signer` protocol; `FakeSigner` (deterministic hashes, records calls, drop-response chaos)
+- [x] Execute: claim → refresh quote → full revalidation → unique execution → advisory lock → sign → persist+commit → broadcast
+- [x] Reconciler on worker start and each loop; identical-bytes rebroadcast; Transfer-log verification
+- [x] Simulated payout with retry-by-execution-id; `fail_next_payout` chaos
+- [x] Immediate "Convert now" path incl. 409 `quote_changed`
+- [x] Settlement health check → simulated mode + banner
+- [x] Receipt screen
+- [x] Tests S1–S7
 - [ ] **You:** follow `docs/TESTNET_SETUP.md` (I'll write it in this phase after verifying chain ID 84532, Circle USDC address, explorer, faucets against official docs). Generate the wallet with `scripts/gen_wallet.py`, fund it with ETH + USDC, and create two route recipient wallets.
-- [ ] `Web3Signer` + live run on Base Sepolia; confirm on explorer
+- [x] `Web3Signer` (built, offline-tested)
+- [ ] Live run on Base Sepolia; confirm on explorer (needs funded wallet)
 **Exit:** auto watch fires on tick 1, a real Base Sepolia tx is verified, receipt shows hash + simulated payout. Chaos "drop broadcast response" + worker restart reconciles to the same hash.
 
 ## Phase 4 — Polish, hosting, handoff (≈10 h)

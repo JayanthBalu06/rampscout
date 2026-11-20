@@ -148,6 +148,15 @@ def test_immediate_with_changed_quote_requires_fresh_confirmation(
     assert fresh["net_mxn"] == "10023.20"
     assert fresh["quote_id"] != q["quote_id"]
     assert executions() == 0
+    # Confirming the fresh quote (new key = fresh confirmation) succeeds.
+    ok = make_watch(
+        mode="immediate",
+        min_payout=fresh["net_mxn"],
+        selected_quote_id=fresh["quote_id"],
+        deadline_local=None,
+    )
+    assert ok["status"] == "completed"
+    assert ok["execution"]["payout_mxn"] == "10023.20"
 
 
 def test_immediate_min_above_quote_rejected(client, make_watch, destination_id):

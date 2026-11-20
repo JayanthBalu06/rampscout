@@ -14,6 +14,7 @@ from rampscout.db import session as db_session
 
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TABLES = [
+    "sim_chain_txs",
     "executions",
     "notifications",
     "decision_events",

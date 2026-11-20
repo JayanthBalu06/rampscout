@@ -64,6 +64,7 @@ export default function App() {
           busy={busy}
           onAdvance={() => run('/demo/advance')}
           onReset={() => run('/demo/reset')}
+          onReconcile={() => run('/demo/reconcile')}
           onChaos={(flag, on) => run('/demo/chaos', { flags: { [flag]: on } })}
         />
         <NotificationBanner refreshKey={refreshKey} />
@@ -72,7 +73,7 @@ export default function App() {
         ) : tab === 'watch' ? (
           <WatchBuilder onCreated={(id) => navigate(`/watch/${id}`)} />
         ) : (
-          <Compare refreshKey={refreshKey} />
+          <Compare refreshKey={refreshKey} onConverted={(id) => navigate(`/watch/${id}`)} />
         )}
         <WatchList refreshKey={refreshKey} />
       </main>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import type { Destination, QuotesResponse } from '../api/types'
+import type { Destination, Quote, QuotesResponse } from '../api/types'
+import { ConvertModal } from '../components/ConvertModal'
 import { RouteCard } from '../components/RouteCard'
 import { SettlementBanner } from '../components/SettlementBanner'
 import { formatInTz } from '../lib/time'
@@ -13,13 +14,14 @@ const REASON_LABEL: Record<string, string> = {
   payout_not_positive: 'Fees exceed amount',
 }
 
-export function Compare({ refreshKey }: { refreshKey: number }) {
+export function Compare({ refreshKey, onConverted }: { refreshKey: number; onConverted: (id: string) => void }) {
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [amount, setAmount] = useState('600')
   const [deadlineLocal, setDeadlineLocal] = useState('')
   const [data, setData] = useState<QuotesResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [converting, setConverting] = useState<Quote | null>(null)
 
   useEffect(() => {
     api<Destination[]>('/destinations').then(setDestinations, (e: Error) => setError(e.message))
@@ -135,6 +137,7 @@ export function Compare({ refreshKey }: { refreshKey: number }) {
                 best={q.quote_id === data.best_quote_id}
                 highestRate={q.quote_id === highestRateId}
                 tz={tz}
+                onConvert={() => setConverting(q)}
               />
             ))}
           </div>
@@ -167,6 +170,20 @@ export function Compare({ refreshKey }: { refreshKey: number }) {
             </div>
           )}
         </>
+      )}
+      {converting && data && (
+        <ConvertModal
+          quote={converting}
+          destination={data.destination}
+          settlement={data.settlement}
+          onchainAmount={data.onchain_amount_usdc}
+          tz={tz}
+          onClose={() => setConverting(null)}
+          onDone={(id) => {
+            setConverting(null)
+            onConverted(id)
+          }}
+        />
       )}
     </section>
   )

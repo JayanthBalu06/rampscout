@@ -8,9 +8,10 @@ interface Props {
   best: boolean
   highestRate: boolean
   tz: string
+  onConvert?: () => void
 }
 
-export function RouteCard({ quote, best, highestRate, tz }: Props) {
+export function RouteCard({ quote, best, highestRate, tz, onConvert }: Props) {
   return (
     <article
       aria-label={`${quote.route_name}${best ? ', best payout' : ''}`}
@@ -62,7 +63,22 @@ export function RouteCard({ quote, best, highestRate, tz }: Props) {
           <FeeBreakdown b={quote.breakdown} />
         </div>
       </details>
-      <p className="mt-2 font-mono text-[11px] text-neutral-400">{quote.quote_id}</p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-[11px] text-neutral-400">{quote.quote_id}</p>
+        {onConvert && (
+          <button
+            type="button"
+            onClick={onConvert}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+              best
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'border border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900'
+            }`}
+          >
+            Convert now
+          </button>
+        )}
+      </div>
     </article>
   )
 }

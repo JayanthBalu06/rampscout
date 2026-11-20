@@ -5,6 +5,8 @@ const CHAOS: Array<[string, string]> = [
   ['provider_a_down', 'Route A down'],
   ['provider_b_down', 'Route B down'],
   ['provider_b_timeout', 'Route B times out'],
+  ['drop_broadcast_response', 'Lose next broadcast response'],
+  ['fail_next_payout', 'Fail next payout'],
 ]
 
 interface Props {
@@ -12,10 +14,11 @@ interface Props {
   busy: boolean
   onAdvance: () => void
   onReset: () => void
+  onReconcile: () => void
   onChaos: (flag: string, on: boolean) => void
 }
 
-export function DemoBar({ state, busy, onAdvance, onReset, onChaos }: Props) {
+export function DemoBar({ state, busy, onAdvance, onReset, onReconcile, onChaos }: Props) {
   return (
     <section
       aria-label="Demo controls"
@@ -26,7 +29,7 @@ export function DemoBar({ state, busy, onAdvance, onReset, onChaos }: Props) {
         <span className="tabular-nums" aria-live="polite">
           {state ? `${formatInTz(state.clock.now, state.clock.display_tz)} · tick ${state.clock.tick}` : '…'}
         </span>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
           <button
             type="button"
             onClick={onAdvance}
@@ -34,6 +37,15 @@ export function DemoBar({ state, busy, onAdvance, onReset, onChaos }: Props) {
             className="rounded-md bg-violet-700 px-3 py-1.5 font-medium text-white hover:bg-violet-800 disabled:opacity-50"
           >
             Advance 1 tick
+          </button>
+          <button
+            type="button"
+            onClick={onReconcile}
+            disabled={busy}
+            title="Simulate a worker restart: run crash recovery now"
+            className="rounded-md border border-violet-400 px-3 py-1.5 hover:bg-violet-100 disabled:opacity-50 dark:hover:bg-violet-900"
+          >
+            Restart worker
           </button>
           <button
             type="button"

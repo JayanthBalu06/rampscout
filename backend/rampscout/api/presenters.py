@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,11 @@ from rampscout.providers.registry import ProviderError
 from rampscout.settlement.status import settlement_status
 
 
+def _trim(d: Decimal) -> Decimal:
+    """Drop storage padding (NUMERIC(20,6) returns 16.750000) without changing the value."""
+    return d.normalize()
+
+
 def quote_out(q: Quote, now: datetime, rank: int | None) -> QuoteOut:
     b = q.breakdown
     return QuoteOut(
@@ -35,12 +41,12 @@ def quote_out(q: Quote, now: datetime, rank: int | None) -> QuoteOut:
         rank=rank,
         net_mxn=b.net_mxn,
         breakdown=FeeBreakdownOut(
-            input_usdc=b.input_usdc,
-            usdc_fee=b.usdc_fee,
-            gas_cost_usdc=b.gas_cost_usdc,
+            input_usdc=_trim(b.input_usdc),
+            usdc_fee=_trim(b.usdc_fee),
+            gas_cost_usdc=_trim(b.gas_cost_usdc),
             gas_sponsored=True,
             usdc_converted=b.usdc_converted,
-            rate_mxn_per_usdc=b.rate_mxn_per_usdc,
+            rate_mxn_per_usdc=_trim(b.rate_mxn_per_usdc),
             gross_mxn=b.gross_mxn,
             mxn_withdrawal_fee=b.mxn_withdrawal_fee,
             net_mxn=b.net_mxn,
@@ -80,8 +86,8 @@ def clock_out(s: DemoSession) -> ClockOut:
     return ClockOut(now=s.clock_now, tick=s.tick, display_tz=DEMO_DISPLAY_TZ, mode="fixture")
 
 
-def settlement_out(settings: Settings) -> SettlementOut:
-    st = settlement_status(settings)
+def settlement_out(settings: Settings, *, fresh: bool = False) -> SettlementOut:
+    st = settlement_status(settings, fresh=fresh)
     return SettlementOut(
         mode=st.mode,
         reason=st.reason,
@@ -89,6 +95,10 @@ def settlement_out(settings: Settings) -> SettlementOut:
         network=st.network,
         token_contract=st.token_contract,
         transfer_scale=st.transfer_scale,
+        signer_address=st.signer_address,
+        signer_usdc=st.signer_usdc,
+        signer_eth=st.signer_eth,
+        explorer_tx_url=settings.explorer_tx_url,
     )
 
 
@@ -153,6 +163,10 @@ def authorization_out(db: Session, auth: Authorization, settings: Settings) -> A
                 else None
             ),
             block_number=ex.block_number,
+            signer_address=ex.signer_address,
+            network="Base Sepolia" if ex.settlement_mode == "testnet" else "local simulated ledger",
+            broadcast_attempts=ex.broadcast_attempts,
+            payout_attempts=ex.payout_attempts,
             payout_status=ex.payout_status,
             payout_mxn=ex.payout_mxn,
             payout_reference=ex.payout_reference,
@@ -208,8 +222,12 @@ def execution_state_label(chain_status: str, payout_status: str) -> str:
         return "completed"
     if chain_status == "confirmed":
         return "transfer confirmed / payout pending"
-    if chain_status in ("prepared", "broadcast", "unknown"):
+    if chain_status == "unknown":
+        return "broadcast outcome unknown, reconciling by hash"
+    if chain_status in ("prepared", "broadcast"):
         return "transfer pending verification"
-    if chain_status == "reverted":
-        return "transfer failed onchain"
-    return "not started"
+    return {
+        "reverted": "transfer reverted onchain",
+        "mismatch": "receipt did not match; held for review",
+        "rejected": "rejected by the network",
+    }.get(chain_status, "not started")

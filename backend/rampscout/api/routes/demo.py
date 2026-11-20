@@ -13,6 +13,7 @@ from rampscout.api.session_dep import CurrentSession, set_session_cookie
 from rampscout.config import get_settings
 from rampscout.db.models import DemoSession
 from rampscout.services.sessions import advance_clock, create_session, set_chaos
+from rampscout.settlement.reconcile import reconcile
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
@@ -44,6 +45,7 @@ def demo_advance(db: DbSession, session: CurrentSession) -> AdvanceOut:
     settings = get_settings()
     advance_clock(db, session, settings)
     db.commit()
+    reconcile(settings, session_id=session.id)
     outcomes = run_due(settings, session_id=session.id)
     db.refresh(session)
     state = _state(session)
@@ -54,6 +56,15 @@ def demo_advance(db: DbSession, session: CurrentSession) -> AdvanceOut:
             for o in outcomes
         ],
     )
+
+
+@router.post("/reconcile", response_model=DemoStateOut)
+def demo_reconcile(db: DbSession, session: CurrentSession) -> DemoStateOut:
+    """Simulate a worker restart: run crash recovery for this session's executions now."""
+    _require_demo()
+    reconcile(get_settings(), session_id=session.id)
+    db.refresh(session)
+    return _state(session)
 
 
 @router.post("/reset", response_model=DemoStateOut)

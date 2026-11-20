@@ -214,3 +214,22 @@ class Execution(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class SimChainTx(Base):
+    """Local simulated ledger used when no testnet signer is configured. It mimics a
+    node: signed bytes exist before broadcast, broadcast may be lost, receipts by hash."""
+
+    __tablename__ = "sim_chain_txs"
+
+    tx_hash: Mapped[str] = mapped_column(String(66), primary_key=True)
+    raw: Mapped[bytes] = mapped_column(LargeBinary)
+    signer: Mapped[str] = mapped_column(String(42), index=True)
+    token: Mapped[str] = mapped_column(String(42))
+    recipient: Mapped[str] = mapped_column(String(42))
+    amount_units: Mapped[Decimal] = mapped_column(Numeric(78, 0))
+    nonce: Mapped[int] = mapped_column(Integer)
+    received: Mapped[bool] = mapped_column(default=False)  # in the "mempool"
+    block_number: Mapped[int | None] = mapped_column(Integer)
+    send_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

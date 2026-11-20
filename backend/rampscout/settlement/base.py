@@ -11,13 +11,9 @@ from rampscout.domain.pricing import USDC_QUANTUM
 class Settler(Protocol):
     mode: str  # "testnet" | "simulated"
 
-    def preflight(self, route_id: str, onchain_amount_usdc: Decimal) -> list[str]:
-        """Settlement-side checks run during revalidation, before an execution exists."""
-        ...
+    def preflight(self, route_id: str, onchain_amount_usdc: Decimal) -> list[str]: ...
 
-    def settle(self, execution_id: uuid.UUID) -> None:
-        """Drive an execution forward. Must be safe to call repeatedly (idempotent)."""
-        ...
+    def settle(self, execution_id: uuid.UUID) -> None: ...
 
 
 def onchain_amount(input_usdc: Decimal, settings: Settings) -> Decimal:

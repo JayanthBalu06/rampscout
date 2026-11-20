@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api, ApiError } from '../api/client'
 import { type Authorization, TERMINAL_STATUSES } from '../api/types'
+import { Receipt } from '../components/Receipt'
 import { StatusPill } from '../components/StatusPill'
 import { Timeline } from '../components/Timeline'
 import { formatDecimal, formatMXN } from '../lib/money'
@@ -41,7 +42,6 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
   if (error && !auth) return <p role="alert">{error}</p>
   if (!auth) return <p>Loading…</p>
   const tz = auth.terms.time_zone
-  const ex = auth.execution
 
   return (
     <section className="space-y-5" aria-labelledby="detail-title">
@@ -51,7 +51,9 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
           {formatMXN(auth.terms.min_payout_mxn)}
         </h2>
         <StatusPill status={auth.status} />
-        <span className="text-xs uppercase tracking-wide text-neutral-500">{auth.mode === 'auto' ? 'Auto-convert' : auth.mode}</span>
+        <span className="text-xs uppercase tracking-wide text-neutral-500">
+          {auth.mode === 'auto' ? 'Auto-convert' : auth.mode === 'immediate' ? 'Convert now' : 'Notify'}
+        </span>
       </header>
 
       {error && (
@@ -122,15 +124,15 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
         </div>
       </div>
 
-      {ex && (
-        <div className="rounded-xl border border-violet-300 p-4 text-sm dark:border-violet-800">
-          <h3 className="font-semibold">Execution · {ex.state_label}</h3>
-          <p className="mt-1">
-            Route {ex.route_id} · quoted {formatMXN(ex.quoted_net_mxn)} · {ex.settlement_mode === 'simulated' ? 'simulated' : 'testnet'} transfer of{' '}
-            {formatDecimal(ex.onchain_amount_usdc, 2)} USDC · payout {ex.payout_mxn ? formatMXN(ex.payout_mxn) : 'pending'} (simulated)
-          </p>
-          {ex.tx_hash && <p className="mt-1 break-all font-mono text-xs text-neutral-500">{ex.tx_hash}</p>}
-        </div>
+      <Receipt auth={auth} />
+
+      {auth.status === 'notified' && (
+        <a
+          href="#/compare"
+          className="inline-block rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700"
+        >
+          Review current quotes and convert now
+        </a>
       )}
 
       <div>

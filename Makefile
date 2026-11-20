@@ -2,7 +2,7 @@
 PY := backend/.venv/bin
 SHELL := /bin/bash
 
-.PHONY: help setup up down migrate migrate-test seed api worker web test test-backend test-frontend lint demo
+.PHONY: help setup up down migrate migrate-test seed api worker web test test-backend test-frontend lint demo wallet check-testnet e2e
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-15s %s\n", $$1, $$2}'
@@ -27,6 +27,12 @@ migrate-test: ## Apply migrations to the test database
 
 seed: ## Seed demo user, destination, and a fresh demo session
 	cd backend && .venv/bin/python -m scripts.seed
+
+wallet: ## Generate dedicated test wallets and write them to .env (see docs/TESTNET_SETUP.md)
+	cd backend && .venv/bin/python -m scripts.gen_wallet --write
+
+check-testnet: ## Verify RPC, chain id, USDC contract and signer balances
+	cd backend && .venv/bin/python -m scripts.check_testnet
 
 api: ## Run FastAPI on :8000 (reload)
 	cd backend && .venv/bin/uvicorn rampscout.api.app:app --reload --port 8000

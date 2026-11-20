@@ -21,6 +21,7 @@ from rampscout.db.models import Destination
 from rampscout.domain.clock import DeadlineResolutionError, resolve_local_deadline
 from rampscout.services.quoting import compare, providers_for
 from rampscout.services.sessions import clock_for
+from rampscout.settlement.base import onchain_amount
 
 router = APIRouter(tags=["quotes"])
 
@@ -72,4 +73,5 @@ def post_quotes(body: QuotesIn, db: DbSession, session: CurrentSession) -> Quote
         provider_errors=[error_out(e) for e in cmp.errors],
         insight=rate_vs_payout_insight(cmp.ranked),
         settlement=settlement_out(settings),
+        onchain_amount_usdc=onchain_amount(body.amount_usdc, settings),
     )

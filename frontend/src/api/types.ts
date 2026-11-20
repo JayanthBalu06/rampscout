@@ -63,6 +63,10 @@ export interface Settlement {
   network: string
   token_contract: string
   transfer_scale: Decimal
+  signer_address: string | null
+  signer_usdc: string | null
+  signer_eth: string | null
+  explorer_tx_url: string | null
 }
 
 export interface QuotesResponse {
@@ -77,6 +81,7 @@ export interface QuotesResponse {
   provider_errors: ProviderError[]
   insight: string | null
   settlement: Settlement
+  onchain_amount_usdc: Decimal
 }
 
 export interface DemoState {
@@ -164,6 +169,10 @@ export interface Execution {
   chain_status: string
   tx_hash: string | null
   explorer_url: string | null
+  signer_address: string | null
+  network: string
+  broadcast_attempts: number
+  payout_attempts: number
   block_number: number | null
   payout_status: string
   payout_mxn: Decimal | null
@@ -212,3 +221,7 @@ export interface AppNotification {
 }
 
 export const TERMINAL_STATUSES = new Set(['notified', 'completed', 'canceled', 'expired', 'requote_required', 'failed'])
+
+export interface ApiErrorDetails {
+  fresh_quote?: Quote | null
+}

@@ -10,9 +10,11 @@ from rampscout.api.presenters import settlement_out
 from rampscout.api.routes import authorizations, demo, quotes
 from rampscout.api.schemas import SettlementOut
 from rampscout.config import get_settings
+from rampscout.logging import configure_logging
 
 
 def create_app() -> FastAPI:
+    configure_logging()
     settings = get_settings()
     app = FastAPI(title="RampScout", version="0.1.0")
     app.add_middleware(
@@ -33,8 +35,9 @@ def create_app() -> FastAPI:
         return {"status": "ok", "db": "ok", "demo_mode": settings.demo_mode}
 
     @app.get("/health/settlement", response_model=SettlementOut)
-    def health_settlement() -> SettlementOut:
-        return settlement_out(get_settings())
+    def health_settlement(fresh: bool = False) -> SettlementOut:
+        """Live verification of RPC, chain id, token and wallet (cached 60 s)."""
+        return settlement_out(get_settings(), fresh=fresh)
 
     return app
 

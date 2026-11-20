@@ -6,6 +6,8 @@ const STYLES: Record<string, string> = {
   executing: 'bg-violet-600 text-white',
   canceled: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
   expired: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+  payout_pending: 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100',
+  failed: 'bg-red-600 text-white',
   requote_required: 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100',
 }
 
@@ -18,6 +20,8 @@ const LABELS: Record<string, string> = {
   canceled: 'Canceled',
   expired: 'Expired unfilled',
   requote_required: 'Needs fresh quote',
+  payout_pending: 'Transfer confirmed · payout pending',
+  failed: 'Failed · no payout',
 }
 
 export function StatusPill({ status }: { status: string }) {

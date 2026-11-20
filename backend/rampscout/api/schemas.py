@@ -168,6 +168,10 @@ class SettlementOut(BaseModel):
     network: str
     token_contract: str
     transfer_scale: str
+    signer_address: str | None = None
+    signer_usdc: str | None = None
+    signer_eth: str | None = None
+    explorer_tx_url: str | None = None
 
 
 class QuotesOut(BaseModel):
@@ -182,6 +186,7 @@ class QuotesOut(BaseModel):
     provider_errors: list[ProviderErrorOut]
     insight: str | None
     settlement: SettlementOut
+    onchain_amount_usdc: Dec  # what a conversion would actually send onchain (demo scale)
 
 
 class DemoStateOut(BaseModel):
@@ -306,6 +311,10 @@ class ExecutionOut(BaseModel):
     chain_status: str
     tx_hash: str | None
     explorer_url: str | None
+    signer_address: str | None
+    network: str
+    broadcast_attempts: int
+    payout_attempts: int
     block_number: int | None
     payout_status: str
     payout_mxn: Dec | None

@@ -60,6 +60,7 @@ def _fresh_quote_details(
         providers=providers_for(settings, session.chaos_flags),
     )
     best = cmp.best
+    db.commit()  # the fresh quote must survive the 409 so the user can confirm it
     return {"fresh_quote": quote_out(best, cmp.now, 1).model_dump(mode="json") if best else None}
 
 

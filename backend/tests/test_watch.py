@@ -15,6 +15,7 @@ from tests.helpers import (
     advance_without_eval,
     executions,
     notifications,
+    onchain_txs,
     session_id_of,
 )
 
@@ -67,7 +68,14 @@ def test_auto_mode_executes_once_on_match(client, make_watch, spy):
     client.post("/demo/advance")
     w = client.get(f"/authorizations/{w['id']}").json()
     assert w["status"] == "completed"
-    assert kinds(w)[-4:] == ["claimed", "execution_started", "transfer_simulated", "payout_posted"]
+    assert kinds(w)[-6:] == [
+        "claimed",
+        "execution_started",
+        "signed",
+        "broadcast",
+        "transfer_confirmed",
+        "payout_posted",
+    ]
     ex = w["execution"]
     assert ex["settlement_mode"] == "simulated"
     assert ex["quoted_net_mxn"] == "10023.20"
@@ -76,9 +84,12 @@ def test_auto_mode_executes_once_on_match(client, make_watch, spy):
     assert ex["explorer_url"] is None  # simulated runs never link to an explorer
     assert ex["state_label"] == "completed"
     assert w["executed_quote"]["route_id"] == "B"
+    assert ex["network"] == "local simulated ledger"
+    assert ex["tx_hash"].startswith("0x") and len(ex["tx_hash"]) == 66
     assert len(spy.settled) == 1
     client.post("/demo/advance")
     assert executions() == 1
+    assert onchain_txs() == 1
 
 
 def test_canceled_watch_never_executes(client, make_watch, spy):
@@ -190,6 +201,7 @@ def test_concurrent_workers_process_a_watch_once(client, make_watch, spy):
     assert w["status"] == "completed"
     assert kinds(w).count("matched") == 1
     assert executions() == 1 and len(spy.settled) == 1
+    assert onchain_txs() == 1
     with SessionLocal() as db:
         seqs = [e.seq for e in db.query(DecisionEvent).order_by(DecisionEvent.seq)]
     assert seqs == list(range(1, len(seqs) + 1))

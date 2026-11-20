@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     max_watch_days: int = 7
 
     rpc_url: str = ""
+    rpc_send_url: str = ""  # optional: Base recommends a sequencer endpoint for sends
+    receipt_wait_seconds: float = 30.0
     expected_chain_id: int = 84532
     usdc_contract: str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
     signer_private_key: SecretStr = SecretStr("")
