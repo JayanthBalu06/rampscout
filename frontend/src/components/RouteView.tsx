@@ -60,7 +60,7 @@ export function HopTable({ route }: { route: RouteQuote }) {
               {formatAmount(h.from_ccy, h.amount_in)} → {formatAmount(h.to_ccy, h.amount_out)}
             </span>
             <span className="text-neutral-500">
-              {h.avg_price && h.from_ccy !== h.to_ccy && `@ ${h.avg_price} ${h.to_ccy}/${h.from_ccy}`}
+              {h.price_label && `@ ${h.price_label}`}
               {h.fee !== '0' && !/^0(\.0+)?$/.test(h.fee) && ` · fee ${formatAmount(h.to_ccy, h.fee)}`}
             </span>
           </div>

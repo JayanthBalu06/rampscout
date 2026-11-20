@@ -391,9 +391,9 @@ class PreviewOut(BaseModel):
 
 
 class ContactIn(Strict):
-    name: str
+    name: str = ""
     kind: Literal["bank", "wallet"]
-    currency: Literal["MXN", "ARS", "COP", "BRL", "USDC"]
+    currency: Literal["MXN", "ARS", "COP", "BRL", "USDC", "USDT", "BTC", "ETH"]
     bank_name: str | None = None
     account: str | None = None
     wallet_address: str | None = None
@@ -421,6 +421,7 @@ class HopOut(BaseModel):
     amount_out: str
     fee: str
     avg_price: str | None
+    price_label: str | None = None
     eta_seconds: int
     source: str
     note: str
@@ -473,3 +474,15 @@ class SendIn(Strict):
 
 
 AuthorizationOut.model_rebuild()
+
+
+class WalletOut(BaseModel):
+    address: str
+    network: str
+    mode: Literal["testnet", "simulated"]
+    usdc: Dec | None
+    eth: Dec | None
+    explorer_url: str | None
+    shared: bool
+    note: str
+    transfer_scale: str

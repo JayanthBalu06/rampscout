@@ -4,7 +4,7 @@
 
 **Live demo: https://rampscout.onrender.com** (free tier; first load after idle takes ~1 min)
 
-**Rates lie, payouts don't.** Send USDC to anyone (a Mexican bank account, an Argentine one, a crypto wallet) and RampScout finds the route that delivers the most, using **live Bitso order books**. Or let an AI agent wait for a target payout and act only within limits you approve.
+**Rates lie, payouts don't.** A wallet that sends USDC to anyone (paste a wallet address and pick what they receive: USDC, USDT, BTC or ETH; or pay a bank account in MXN, ARS, COP or BRL) and automatically finds the route that delivers the most, using **live Bitso order books**. An AI agent can also wait for a target payout and act only within limits you approve.
 
 Built for the **Agentic Payments & AI** track. The USDC transfer is **real on Base Sepolia**; exchange legs are priced from **live Bitso market data**; fiat payouts are simulated, and every screen labels which is which.
 
@@ -26,9 +26,14 @@ net MXN = floor_to_centavos( (input USDC − USDC fee − gas) × rate − MXN w
 
 Users can convert now, or ask the agent: *"Convert 600 USDC if I can receive at least 10,000 pesos by Friday at 5 p.m. Mexico City time."* Waiting is optional, and it can end with a worse quote or no conversion at all. The UI says so before you confirm.
 
-## Send: the best route, found automatically
+## The wallet: send anywhere, best route found automatically
 
-Pick a saved contact and an amount. That's all. RampScout searches every route up to three conversions deep across Bitso's live markets (USD, USDT, BTC, ETH into MXN, ARS, COP, BRL) and ranks them by what the recipient actually receives:
+| Home | Send (pasted address, recipient wants BTC) |
+|---|---|
+| ![Wallet home](docs/img/home.png) | ![Send with the best live route](docs/img/send.png) |
+
+- **Home:** your wallet address and live balances (read from Base Sepolia), with **Send / Receive** (QR code), recent activity, and the agent's **Rates** and **Watch** tools.
+- **Send:** paste a recipient address and choose what they receive, or pick a bank account. Enter an amount. That's all. RampScout searches every route up to three conversions deep across Bitso's live markets (USD, USDT, BTC, ETH, MXN, ARS, COP, BRL) and ranks them by what the recipient actually receives:
 
 ```
 600 USDC → Mamá (BBVA, MXN), live Bitso data:
@@ -38,18 +43,17 @@ Pick a saved contact and an amount. That's all. RampScout searches every route u
   …  USDC → USDT → BTC → MXN    MX$11,268.60   (−MX$58.84)
 ```
 
+- **New addresses are confirmed once.** A pasted address can be quoted immediately, but the first send to it requires ticking "I've checked every character"; it's then saved. Sends only ever target saved, confirmed recipients by ID, and the model never touches them.
 - **Exact, not approximate.** Each exchange hop walks the real order book level by level (depth and slippage included), charges Bitso's published taker fee for that market, and rounds down to the currency's minor unit, because each hop is a separate trade. With a handful of currencies, exhaustive search over simple paths is exact and takes milliseconds. Shortest-path shortcuts like Dijkstra over −log(rate) are only correct when every fee is a pure percentage, and fixed fees, book depth and per-hop rounding break that (`test_routing.py::test_fixed_fee_flips_ranking_by_size`).
 - **Honest about gaps.** Bitso lists no USDC market, so USDC enters through a stablecoin-swap leg explicitly labeled *assumption* (1:1, 0.05% fee, configurable). If Bitso is unreachable, a recorded snapshot is used and flagged.
 - **Price protection without asking the user.** The confirmed minimum is the quote minus 0.5%. Right before signing, the exact path is **re-priced on fresh market data**; if the recipient would get less than the minimum, nothing is sent.
-- **Contacts, not raw addresses.** Wallet addresses and bank accounts (CLABE check digit validated) are entered once, reviewed and confirmed; sends can only target confirmed contacts by ID. The model never touches them.
 - **Same safety rails as the agent:** idempotency keys, one execution per authorization, save-before-broadcast, reconciliation by hash.
 
 | Contact | Route | What's real |
 |---|---|---|
 | Bank (MXN, ARS, COP, BRL) | onchain USDC → venue wallet, then Bitso conversions, then payout | USDC transfer real (testnet); prices live; payout simulated |
-| Wallet (USDC) | direct onchain transfer to the contact | fully real on Base Sepolia |
-
-![Send: best live route with hop-by-hop breakdown](docs/img/send.png)
+| Wallet, receives USDC | direct onchain transfer to the address | fully real on Base Sepolia |
+| Wallet, receives USDT / BTC / ETH | onchain USDC → venue wallet, Bitso conversions, withdrawal to the address | USDC transfer real; prices live; withdrawal simulated |
 
 ## What is real and what is simulated
 
@@ -148,9 +152,9 @@ make web                   # Vite on :5173, proxies /api → :8000
 **Tests:**
 
 ```bash
-make test                  # 119 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
+make test                  # 122 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
 make lint                  # ruff, mypy (strict on the domain layer), oxlint, tsc
-make e2e                   # 7 Playwright journeys against the Docker stack
+make e2e                   # 9 Playwright journeys against the Docker stack
 ```
 
 **Demo:** [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) is the two-minute talk track. `make demo` runs the same journey in a terminal.

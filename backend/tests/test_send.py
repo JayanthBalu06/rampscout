@@ -174,10 +174,12 @@ def test_contact_validation_and_confirmation(client):
 
     assert good["wallet_address"] == Web3.to_checksum_address("0x" + "ab" * 20)
     assert good["wallet_address"] != "0x" + "ab" * 20  # stored checksummed
-    r = client.post("/send/routes", json={"contact_id": good["id"], "amount_usdc": "10"})
-    assert r.status_code == 422 and "Confirm" in r.json()["error"]["message"]
+    # A pending (just pasted) address can be quoted, but not paid.
+    rid = routes(client, good, "10")["best_route_id"]
+    err = send(client, good, rid, amount="10", expect=422)["error"]
+    assert "Confirm" in err["message"]
     assert client.post(f"/contacts/{good['id']}/confirm").json()["status"] == "confirmed"
-    assert routes(client, good, "10")["routes"]
+    assert send(client, good, rid, amount="10")["status"] == "completed"
 
 
 def test_contacts_are_private_to_their_session(client):
@@ -197,3 +199,49 @@ def test_contacts_are_private_to_their_session(client):
 )
 def test_clabe_check_digit(clabe, ok):
     assert clabe_is_valid(clabe) is ok
+
+
+def add_wallet(client, address, currency, name=""):
+    r = client.post(
+        "/contacts",
+        json={"name": name, "kind": "wallet", "currency": currency, "wallet_address": address},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_crypto_wallet_recipient_gets_a_conversion_route(client):
+    btc = add_wallet(client, "0x" + "cd" * 20, "BTC")
+    assert btc["name"].startswith("0x") and "…" in btc["name"]  # named from the address
+    body = routes(client, btc)
+    best = body["routes"][0]
+    assert best["to_ccy"] == "BTC" and best["path"].endswith("BTC")
+    assert len(body["routes"]) > 1  # e.g. via USDT vs via USD/MXN
+    kinds = [h["kind"] for h in best["hops"]]
+    assert kinds[0] == "transfer" and kinds[-1] == "payout"
+    assert "withdrawal" in best["hops"][-1]["venue"]
+    trade = next(h for h in best["hops"] if h["to_ccy"] == "BTC" and h["kind"] == "orderbook")
+    assert trade["price_label"].endswith(" per BTC")  # buy-side price shown un-inverted
+    client.post(f"/contacts/{btc['id']}/confirm")
+    a = send(client, btc, body["best_route_id"])
+    assert a["status"] == "completed"
+    assert a["execution"]["out_currency"] == "BTC"
+    assert "Simulated withdrawal" in a["events"][-1]["reason"]
+
+
+def test_pasting_the_same_address_reuses_the_contact(client):
+    a1 = add_wallet(client, "0x" + "ef" * 20, "USDC")
+    client.post(f"/contacts/{a1['id']}/confirm")
+    a2 = add_wallet(client, "0x" + "EF" * 20, "USDC")
+    assert a2["id"] == a1["id"] and a2["status"] == "confirmed"
+    a3 = add_wallet(client, "0x" + "ef" * 20, "ETH")  # different token = different recipient
+    assert a3["id"] != a1["id"]
+
+
+def test_wallet_endpoint_reports_demo_balance(client):
+    w = client.get("/wallet").json()
+    assert w["mode"] == "simulated" and w["address"].startswith("0x")
+    assert w["usdc"] == "1000"
+    ana = contacts(client)["Ana"]
+    send(client, ana, routes(client, ana)["best_route_id"])
+    assert client.get("/wallet").json()["usdc"] == "994.000000"  # 600 x 0.01 demo scale

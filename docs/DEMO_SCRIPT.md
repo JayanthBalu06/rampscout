@@ -13,14 +13,15 @@
 | 1:30 | **Receipt**: click the tx hash. | "Here's a real USDC transfer on Base Sepolia, scaled down for faucet limits, verified by its receipt and Transfer log. Peso conversion and the bank deposit are simulated, and labeled that way." |
 | 1:45 | Point at the quoted vs simulated payout panel. Optional: tick **Lose next broadcast response**, convert again, click **Restart worker**. | "Quoted MX$10,023.20, paid MX$10,023.20. And if the network response is lost mid-payment, it never signs twice: it saved the transaction before sending and reconciles by the original hash." |
 
-## Alternative opening: Send (live market data)
+## Alternative opening: the wallet (live market data)
 
 | Time | Do | Say |
 |---|---|---|
-| 0:00 | **Send** tab, Mamá selected, 600 USDC. | "I want to send 600 USDC to my mom in Mexico. I pick her and an amount; that's all I enter." |
-| 0:10 | Point at *routes compared* and the price-protection minimum. Open **How this route works**. | "RampScout just priced every route through Bitso's live order books. USD then pesos beats USDT then pesos by about 9 pesos today, and the BTC detour by about 60. Each hop walks the real book with Bitso's real fees. Bitso has no USDC market, so that first swap is labeled as an assumption." |
-| 0:30 | **Show other routes**, then click **Ana** (wallet). | "For a crypto contact there's nothing to convert: it's a direct onchain transfer." |
-| 0:40 | Back to Mamá → **Send** → **Confirm**. Receipt. | "Right before signing it re-prices the same route on fresh data. If Mamá would get less than the minimum, nothing moves. Here's the Base Sepolia transfer, and the payout matching the quote." |
+| 0:00 | **Home**: point at the wallet card, then **Send**. | "This is my wallet on Base Sepolia, with real test USDC. I want to pay a friend who wants Bitcoin." |
+| 0:10 | Paste the friend's address, tap **BTC**, amount 600. | "I paste their address and pick what they want. That's all I enter." |
+| 0:20 | Point at *routes compared*; open **How this route works**; **Show other routes**. | "RampScout priced every path through Bitso's live order books and picked USDC → USDT → BTC. Each hop walks the real order book with Bitso's real fees. Bitso has no USDC market, so that first swap is labeled as an assumption." |
+| 0:35 | **Bank account** tab → Mamá. | "Same thing for my mom's bank account in Mexico: dollars then pesos beats the alternatives by about 9 pesos right now." |
+| 0:45 | **Send** → tick the new-address check → **Confirm**. Receipt. | "It re-prices that exact route on fresh data right before sending; if she'd get less than the minimum, nothing moves. Here's the real Base Sepolia transfer and the payout matching the quote." |
 
 **Reset between runs** with the Reset button. Each browser has its own demo clock.
 

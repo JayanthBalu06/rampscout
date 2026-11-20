@@ -256,6 +256,7 @@ export interface Hop {
   amount_out: Decimal
   fee: Decimal
   avg_price: Decimal | null
+  price_label: string | null
   eta_seconds: number
   source: 'live' | 'recorded' | 'assumption' | 'fixture' | 'real-onchain' | 'simulated'
   note: string
@@ -285,4 +286,16 @@ export interface SendRoutesResponse {
   market: { source: 'live' | 'recorded'; as_of: string; venue: string; fell_back: boolean; errors: Record<string, string> }
   settlement: Settlement
   onchain_amount_usdc: Decimal
+}
+
+export interface Wallet {
+  address: string
+  network: string
+  mode: 'testnet' | 'simulated'
+  usdc: Decimal | null
+  eth: Decimal | null
+  explorer_url: string | null
+  shared: boolean
+  note: string
+  transfer_scale: Decimal
 }

@@ -80,17 +80,13 @@ def _transfer_leg(leg_id: str, venue: str, mode: str) -> RateLeg:
 def legs_for(
     contact: Contact, market: Market, settings: Settings, settlement_mode: str
 ) -> tuple[list[Leg], list[Leg], list[Leg]]:
-    """(prefix, conversion legs, suffix) for this contact."""
-    if contact.kind == "wallet":
-        return (
-            [
-                _transfer_leg(
-                    "onchain:to_contact", f"Base Sepolia → {contact.name}", settlement_mode
-                )
-            ],
-            [],
-            [],
-        )
+    """(prefix, conversion legs, suffix) for this contact.
+
+    USDC wallet: one direct onchain transfer. Everything else: onchain deposit to the venue,
+    conversions on the exchange, then a payout (bank transfer or crypto withdrawal)."""
+    if contact.kind == "wallet" and contact.currency == "USDC":
+        leg = _transfer_leg("onchain:to_contact", f"Base Sepolia → {contact.name}", settlement_mode)
+        return [leg], [], []
     prefix: list[Leg] = [
         _transfer_leg(
             "onchain:to_venue", "Base Sepolia → Bitso deposit (demo wallet)", settlement_mode
@@ -100,22 +96,42 @@ def legs_for(
         market, stable_swap_fee=Decimal(settings.stable_swap_fee_bps) / Decimal(10_000)
     )
     ccy = contact.currency
+    if contact.kind == "wallet":
+        venue, eta, note = (
+            f"Bitso withdrawal → {contact.name} (simulated)",
+            timedelta(minutes=5),
+            "network withdrawal fee not modeled",
+        )
+    else:
+        venue = "SPEI (simulated)" if ccy == "MXN" else "Local bank transfer (simulated)"
+        eta = PAYOUT_ETA.get(ccy, DEFAULT_PAYOUT_ETA)
+        note = "withdrawal fee not modeled"
     suffix: list[Leg] = [
         RateLeg(
             leg_id=f"payout:{ccy.lower()}",
-            venue="SPEI (simulated)" if ccy == "MXN" else "Local bank transfer (simulated)",
+            venue=venue,
             from_ccy=ccy,
             to_ccy=ccy,
             rate=Decimal(1),
             pct_fee=Decimal(0),
             fixed_fee=Decimal(0),
             source="simulated",
-            eta=PAYOUT_ETA.get(ccy, DEFAULT_PAYOUT_ETA),
+            eta=eta,
             kind="payout",
-            note="withdrawal fee not modeled",
+            note=note,
         )
     ]
     return prefix, conversions, suffix
+
+
+def price_label(h: Hop) -> str | None:
+    """Human price, quoted the way traders read it (e.g. "59,743.21 USDT per BTC")."""
+    if h.avg_price is None or h.from_ccy == h.to_ccy or h.avg_price <= 0:
+        return None
+    if h.avg_price >= 1:
+        return f"{h.avg_price:,.4f}".rstrip("0").rstrip(".") + f" {h.to_ccy} per {h.from_ccy}"
+    inverse = 1 / h.avg_price
+    return f"{inverse:,.2f} {h.from_ccy} per {h.to_ccy}"
 
 
 def hop_json(h: Hop) -> dict[str, Any]:
@@ -129,6 +145,7 @@ def hop_json(h: Hop) -> dict[str, Any]:
         "amount_out": format(h.amount_out, "f"),
         "fee": format(floor_to(h.to_ccy, h.fee), "f"),
         "avg_price": format(h.avg_price.normalize(), "f") if h.avg_price is not None else None,
+        "price_label": price_label(h),
         "eta_seconds": int(h.eta.total_seconds()),
         "source": h.source,
         "note": h.note,
@@ -249,7 +266,7 @@ class SendOutcome:
 
 
 def _recipient(contact: Contact, settler: ChainSettler, settings: Settings) -> tuple[str, str]:
-    if contact.kind == "wallet":
+    if contact.kind == "wallet" and contact.currency == "USDC":
         assert contact.wallet_address
         return contact.wallet_address, f"{contact.name}'s wallet {contact.account_masked}"
     venue = (

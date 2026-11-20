@@ -8,6 +8,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, Response
 from sqlalchemy import select
+from web3 import Web3
 
 from rampscout.agent.clocks import clock_for_session
 from rampscout.agent.events import record
@@ -28,6 +29,7 @@ from rampscout.api.schemas import (
     SendIn,
     SendRoutesIn,
     SendRoutesOut,
+    WalletOut,
 )
 from rampscout.api.session_dep import CurrentSession
 from rampscout.config import get_settings
@@ -38,6 +40,7 @@ from rampscout.services.contacts import (
     ContactError,
     create_contact,
     get_confirmed,
+    get_contact,
     seed_contacts,
 )
 from rampscout.services.send import (
@@ -162,7 +165,7 @@ def _routes_response(
 def send_routes(body: SendRoutesIn, db: DbSession, session: CurrentSession) -> SendRoutesOut:
     """Every viable route to this contact, best first. Creates no authorization."""
     try:
-        contact = get_confirmed(db, session, body.contact_id)
+        contact = get_contact(db, session, body.contact_id, confirmed=False)
     except ContactError as exc:
         raise _contact_error(exc) from exc
     return _routes_response(db, session, contact, body.amount_usdc, body.source)
@@ -281,3 +284,46 @@ def send(
     final = db.get(Authorization, auth.id)
     assert final is not None
     return authorization_out(db, final, settings)
+
+
+@router.get("/wallet", response_model=WalletOut)
+def wallet(db: DbSession, session: CurrentSession) -> WalletOut:
+    """The demo wallet that sends pay from. On testnet: real balances read from Base
+    Sepolia. In simulated mode: a demo balance on the local ledger."""
+    from sqlalchemy import func
+
+    from rampscout.db.models import Execution
+    from rampscout.settlement.sim_chain import SIM_SIGNER
+    from rampscout.settlement.status import settlement_status
+
+    settings = get_settings()
+    st = settlement_status(settings)
+    scale = format(settings.demo_transfer_scale, "f")
+    if st.mode == "testnet" and st.signer_address:
+        return WalletOut(
+            address=st.signer_address,
+            network="Base Sepolia",
+            mode="testnet",
+            usdc=Decimal(st.signer_usdc) if st.signer_usdc else None,
+            eth=Decimal(st.signer_eth) if st.signer_eth else None,
+            explorer_url=f"https://sepolia.basescan.org/address/{st.signer_address}",
+            shared=True,
+            note="Shared demo wallet holding Base Sepolia test funds",
+            transfer_scale=scale,
+        )
+    spent = db.scalar(
+        select(func.coalesce(func.sum(Execution.onchain_amount_usdc), 0))
+        .join(Authorization, Authorization.id == Execution.authorization_id)
+        .where(Authorization.session_id == session.id, Execution.chain_status == "confirmed")
+    )
+    return WalletOut(
+        address=Web3.to_checksum_address(SIM_SIGNER),
+        network="local simulated ledger",
+        mode="simulated",
+        usdc=Decimal("1000") - Decimal(spent or 0),
+        eth=Decimal("1"),
+        explorer_url=None,
+        shared=False,
+        note=st.reason,
+        transfer_scale=scale,
+    )

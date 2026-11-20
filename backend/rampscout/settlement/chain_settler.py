@@ -366,6 +366,18 @@ class ChainSettler:
                     f"Simulated {rail} of {fmt_amount(ccy, quoted)} posted to {payee} "
                     f"(ref {ref}, attempt {ex.payout_attempts})."
                 )
+            elif ccy != "USDC":
+                # Crypto wallet contact (BTC/ETH/USDT): converted on the exchange, then a
+                # withdrawal to their wallet, which this prototype simulates.
+                ex.delivered_out = quoted
+                auth.last_reason = (
+                    f"Completed: {fmt_usdc(ex.onchain_amount_usdc)} transfer {where}; "
+                    f"simulated withdrawal of {fmt_amount(ccy, quoted)} to {payee}."
+                )
+                detail = (
+                    f"Simulated withdrawal of {fmt_amount(ccy, quoted)} to {payee} "
+                    f"(ref {ref}, attempt {ex.payout_attempts})."
+                )
             else:
                 # Wallet contact: the verified onchain transfer *is* the delivery.
                 ex.delivered_out = ex.onchain_amount_usdc

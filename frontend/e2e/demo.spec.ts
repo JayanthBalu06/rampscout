@@ -81,11 +81,20 @@ test('expired quote requires fresh confirmation', async ({ page }) => {
   await expect(page.getByText('Posted to bank (simulated SPEI)')).toBeVisible()
 })
 
-test('send picks the best live route automatically and pays the contact', async ({ page }) => {
+test('home shows the wallet with send and receive', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/home')
+  await expect(page.getByRole('region', { name: 'Your wallet' })).toBeVisible()
+  await expect(page.getByText(/USDC/).first()).toBeVisible()
+  await page.getByRole('link', { name: /Receive/ }).click()
+  await expect(page.getByRole('img', { name: /QR code/ })).toBeVisible()
+})
+
+test('send to a bank account picks the best live route and pays', async ({ page }) => {
   await freshSession(page)
   await page.goto('/#/send')
-  await expect(page.getByText('Best route')).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByText(/Mamá receives/)).toBeVisible()
+  await page.getByRole('tab', { name: 'Bank account' }).click()
+  await expect(page.getByText(/Mamá receives/)).toBeVisible({ timeout: 20_000 })
   await expect(page.getByText(/routes compared/)).toBeVisible()
   await page.getByRole('button', { name: /^Send 600/ }).click()
   await page.getByRole('button', { name: 'Confirm and send' }).click()
@@ -94,11 +103,27 @@ test('send picks the best live route automatically and pays the contact', async 
   await expect(page.getByText('Posted to bank (simulated SPEI)')).toBeVisible()
 })
 
-test('send to a wallet contact is a direct onchain transfer', async ({ page }) => {
+test('paste a wallet address, recipient wants BTC: best conversion route, confirm new address', async ({ page }) => {
   await freshSession(page)
   await page.goto('/#/send')
-  await page.getByRole('button', { name: /Ana/ }).click()
-  await expect(page.getByText('600.00 USDC').first()).toBeVisible({ timeout: 20_000 })
+  await page.getByLabel(/Recipient address/).fill('0x' + '12'.repeat(20))
+  await page.getByText('BTC', { exact: true }).click()
+  await expect(page.getByText('Best route', { exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('article').getByText(/BTC$/).first()).toBeVisible()
+  await page.getByRole('button', { name: /^Send 600/ }).click()
+  const confirm = page.getByRole('button', { name: 'Confirm and send' })
+  await expect(confirm).toBeDisabled() // new address must be acknowledged
+  await page.getByRole('checkbox').check()
+  await confirm.click()
+  await expect(page.getByRole('heading', { name: 'Receipt' })).toBeVisible()
+  await expect(page.getByText(/Simulated withdrawal/).first()).toBeVisible()
+})
+
+test('send USDC to a saved wallet is a direct onchain transfer', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/send')
+  await page.getByRole('button', { name: /Ana · USDC/ }).click()
+  await expect(page.getByText('Best route', { exact: true })).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: /^Send 600/ }).click()
   await page.getByRole('button', { name: 'Confirm and send' }).click()
   await expect(page.getByText('Delivered to wallet onchain')).toBeVisible()

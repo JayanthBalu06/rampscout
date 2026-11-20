@@ -15,7 +15,7 @@ from rampscout.db.models import Contact, DemoSession
 from rampscout.settlement.sim_chain import SIM_ROUTE_RECIPIENTS
 
 BANK_CURRENCIES = {"MXN": "MX", "ARS": "AR", "COP": "CO", "BRL": "BR"}
-WALLET_CURRENCIES = {"USDC"}
+WALLET_CURRENCIES = {"USDC", "USDT", "BTC", "ETH"}
 MAX_CONTACTS = 20
 
 
@@ -50,6 +50,9 @@ class ContactDraft:
 
 def normalize(draft: ContactDraft, signer_address: str | None) -> dict[str, str | None]:
     name = draft.name.strip()
+    if not name and draft.kind == "wallet" and draft.wallet_address:
+        a = draft.wallet_address.strip()
+        name = f"{a[:6]}…{a[-4:]}"  # pasted address without a name
     if not 1 <= len(name) <= 80:
         raise ContactError("Name must be 1-80 characters")
     if draft.kind == "bank":
@@ -78,7 +81,7 @@ def normalize(draft: ContactDraft, signer_address: str | None) -> dict[str, str 
         }
     if draft.kind == "wallet":
         if draft.currency not in WALLET_CURRENCIES:
-            raise ContactError("Wallet contacts receive USDC on Base Sepolia")
+            raise ContactError(f"Wallets can receive {', '.join(sorted(WALLET_CURRENCIES))}")
         addr = (draft.wallet_address or "").strip()
         if not Web3.is_address(addr):
             raise ContactError("Not a valid EVM address")
@@ -90,7 +93,7 @@ def normalize(draft: ContactDraft, signer_address: str | None) -> dict[str, str 
         return {
             "name": name,
             "kind": "wallet",
-            "currency": "USDC",
+            "currency": draft.currency,
             "country": None,
             "bank_name": None,
             "account_masked": f"{checksummed[:6]}…{checksummed[-4:]}",
@@ -105,12 +108,19 @@ def create_contact(
     n = db.scalar(select(func.count()).select_from(Contact).where(Contact.session_id == session.id))
     if (n or 0) >= MAX_CONTACTS:
         raise ContactError("Contact limit reached for this demo session")
-    c = Contact(
-        owner_id=session.owner_id,
-        session_id=session.id,
-        status="pending",
-        **normalize(draft, signer_address),
-    )
+    fields = normalize(draft, signer_address)
+    if fields["wallet_address"]:
+        # Pasting an address you've used before reuses (and keeps the status of) that contact.
+        same = db.scalars(
+            select(Contact).where(
+                Contact.session_id == session.id,
+                Contact.wallet_address == fields["wallet_address"],
+                Contact.currency == fields["currency"],
+            )
+        ).first()
+        if same is not None:
+            return same
+    c = Contact(owner_id=session.owner_id, session_id=session.id, status="pending", **fields)
     db.add(c)
     db.flush()
     return c
@@ -149,10 +159,18 @@ def seed_contacts(db: Session, session: DemoSession, settings: Settings) -> None
     db.flush()
 
 
-def get_confirmed(db: Session, session: DemoSession, contact_id: uuid.UUID) -> Contact:
+def get_contact(
+    db: Session, session: DemoSession, contact_id: uuid.UUID, *, confirmed: bool = True
+) -> Contact:
+    """Quotes may target a pending contact (so a pasted address shows routes at once);
+    sending always requires confirmation."""
     c = db.get(Contact, contact_id)
     if c is None or c.session_id != session.id:
         raise ContactError("Unknown contact")
-    if c.status != "confirmed":
+    if confirmed and c.status != "confirmed":
         raise ContactError("Confirm this contact before sending to it")
     return c
+
+
+def get_confirmed(db: Session, session: DemoSession, contact_id: uuid.UUID) -> Contact:
+    return get_contact(db, session, contact_id, confirmed=True)
