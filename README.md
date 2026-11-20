@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/JayanthBalu06/rampscout/actions/workflows/ci.yml/badge.svg)](https://github.com/JayanthBalu06/rampscout/actions/workflows/ci.yml)
 
+**Live demo: https://rampscout.onrender.com** (free tier; first load after idle takes ~1 min)
+
 **Rates lie, payouts don't.** RampScout compares USDC → MXN off-ramp routes by the pesos that actually reach the recipient's bank. An AI agent can watch for a target payout and act only within limits the user approves.
 
 Built for the **Agentic Payments & AI** track. Prototype scope: one corridor (USDC → MXN), one demo user, one saved Mexican bank account, two synthetic providers, and a real **Base Sepolia** USDC transfer. Fiat conversion and the bank deposit are simulated and labeled that way everywhere.
@@ -165,7 +167,7 @@ What was actually run while building this, as opposed to what is only designed:
 | **Live Base Sepolia transfer** | ✅ auto watch matched at tick 1, revalidated, sent 6 test USDC (1:100 scale) to Route B's wallet, verified by receipt and Transfer log: [`0xc9c1…7660`](https://sepolia.basescan.org/tx/0xc9c16521aa3513dc7e05ae71c91213aa987427c4ac829958e29a35418f237660) (block 61330798) |
 | **Claude drafting against the live API** | ⏳ needs `ANTHROPIC_API_KEY`; covered by mocked tests, and the rules parser ran instead |
 | GitHub Actions CI (lint, types, 91 backend tests on Postgres, unit tests, Playwright E2E) | ✅ green on GitHub |
-| Render deploy | ⏳ blueprint ready, not yet deployed |
+| Hosted demo on Render | ✅ https://rampscout.onrender.com — real 0.60 test USDC transfer (1:1000 scale) from the hosted app: [`0x93cd…0227`](https://sepolia.basescan.org/tx/0x93cdd254a96b05796fa6fbfaf2c5c1d0e3aa31014ebb28e1f68e848935140227) |
 
 ## Future work (not in this prototype)
 
