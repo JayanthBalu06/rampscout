@@ -24,9 +24,10 @@ from sqlalchemy.orm import Session
 from rampscout.agent.clocks import clock_for_auth
 from rampscout.agent.events import record
 from rampscout.config import Settings
-from rampscout.db.models import Authorization, DemoSession, Execution
+from rampscout.db.models import Authorization, Contact, DemoSession, Execution
 from rampscout.db.session import SessionLocal
-from rampscout.domain.money import fmt_mxn, fmt_usdc
+from rampscout.domain.currencies import FIAT, fmt_amount
+from rampscout.domain.money import fmt_usdc
 from rampscout.settlement.chain import (
     BroadcastRejected,
     BroadcastUnknown,
@@ -70,9 +71,11 @@ class ChainSettler:
         """Server-configured settlement wallet. Clients and the model cannot supply this."""
         return self.recipients.get(route_id)
 
-    def preflight(self, route_id: str, onchain_amount_usdc: Decimal) -> list[str]:
+    def preflight(
+        self, route_id: str, onchain_amount_usdc: Decimal, recipient: str | None = None
+    ) -> list[str]:
         failures: list[str] = []
-        recipient = self.recipient_for(route_id)
+        recipient = recipient or self.recipient_for(route_id)
         if not recipient:
             failures.append(f"no settlement wallet configured for Route {route_id}")
         elif same_address(recipient, self.chain.signer_address):
@@ -139,7 +142,9 @@ class ChainSettler:
             ex, auth = locked
             if ex.chain_status != "not_started":
                 return
-            recipient = self.recipient_for(ex.route_id)
+            # Send flow presets the recipient (confirmed contact or venue wallet, both from
+            # server-side records); watch/convert flows map the route to its wallet.
+            recipient = ex.recipient_address or self.recipient_for(ex.route_id)
             if recipient is None:
                 raise RuntimeError("preflight should have caught a missing recipient")
             signer = self.chain.signer_address
@@ -166,8 +171,9 @@ class ChainSettler:
                 auth,
                 self._now(db, auth),
                 "signed",
-                f"Signed a {fmt_usdc(ex.onchain_amount_usdc)} transfer to Route {ex.route_id}'s "
-                f"settlement wallet on {self.chain.label} (nonce {nonce}, "
+                f"Signed a {fmt_usdc(ex.onchain_amount_usdc)} transfer to "
+                f"{ex.recipient_label or f'Route {ex.route_id} settlement wallet'} on "
+                f"{self.chain.label} (nonce {nonce}, "
                 f"tx {short(signed.tx_hash)}). Saved before broadcast.",
             )
             db.commit()  # the hash is durable before any byte leaves this process
@@ -329,7 +335,6 @@ class ChainSettler:
                 db.commit()
                 return
             ex.payout_status = "posted"
-            ex.payout_mxn = ex.quoted_net_mxn
             ex.payout_reference = ref
             auth.status = "completed"
             auth.closed_at = now
@@ -339,16 +344,39 @@ class ChainSettler:
                 if self.mode == "testnet"
                 else f"settled on the {self.chain.label}"
             )
-            auth.last_reason = (
-                f"Completed: {fmt_usdc(ex.onchain_amount_usdc)} transfer {where}; "
-                f"simulated SPEI payout of {fmt_mxn(ex.quoted_net_mxn)} posted."
+            ccy = ex.out_currency or "MXN"
+            contact = db.get(Contact, auth.contact_id) if auth.contact_id else None
+            payee = (
+                f"{contact.name} ({contact.account_masked})"
+                if contact
+                else ex.recipient_label or "the bank"
             )
-            record(
-                db,
-                auth,
-                now,
-                "payout_posted",
-                f"Simulated SPEI deposit of {fmt_mxn(ex.quoted_net_mxn)} posted to the bank "
-                f"(ref {ref}, attempt {ex.payout_attempts}).",
-            )
+            quoted = ex.quoted_out if ex.quoted_out is not None else ex.quoted_net_mxn
+            assert quoted is not None
+            if ccy in FIAT:
+                ex.delivered_out = quoted
+                if ccy == "MXN":
+                    ex.payout_mxn = quoted
+                rail = "SPEI deposit" if ccy == "MXN" else "local bank deposit"
+                auth.last_reason = (
+                    f"Completed: {fmt_usdc(ex.onchain_amount_usdc)} transfer {where}; "
+                    f"simulated {rail} of {fmt_amount(ccy, quoted)} posted to {payee}."
+                )
+                detail = (
+                    f"Simulated {rail} of {fmt_amount(ccy, quoted)} posted to {payee} "
+                    f"(ref {ref}, attempt {ex.payout_attempts})."
+                )
+            else:
+                # Wallet contact: the verified onchain transfer *is* the delivery.
+                ex.delivered_out = ex.onchain_amount_usdc
+                auth.last_reason = (
+                    f"Completed: {fmt_usdc(ex.onchain_amount_usdc)} delivered to "
+                    f"{ex.recipient_label or 'the wallet'}, {where}."
+                )
+                detail = (
+                    f"Delivered onchain to {ex.recipient_label or 'the wallet'}: "
+                    f"{fmt_usdc(ex.onchain_amount_usdc)} (quoted {fmt_amount(ccy, quoted)} at "
+                    f"full scale)."
+                )
+            record(db, auth, now, "payout_posted", detail)
             db.commit()

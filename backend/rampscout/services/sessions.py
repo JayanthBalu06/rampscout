@@ -57,6 +57,9 @@ def create_session(db: Session, settings: Settings) -> DemoSession:
     )
     db.add(s)
     db.flush()
+    from rampscout.services.contacts import seed_contacts
+
+    seed_contacts(db, s, settings)
     return s
 
 

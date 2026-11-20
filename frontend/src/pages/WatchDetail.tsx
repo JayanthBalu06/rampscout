@@ -1,81 +1,110 @@
-import { useState } from 'react'
-import { api, ApiError } from '../api/client'
-import { type Authorization, TERMINAL_STATUSES } from '../api/types'
-import { Receipt } from '../components/Receipt'
-import { StatusPill } from '../components/StatusPill'
-import { Timeline } from '../components/Timeline'
-import { formatDecimal, formatMXN } from '../lib/money'
-import { formatInTz } from '../lib/time'
-import { usePolling } from '../lib/usePolling'
+import { useState } from "react";
+import { api, ApiError } from "../api/client";
+import { type Authorization, TERMINAL_STATUSES } from "../api/types";
+import { Receipt } from "../components/Receipt";
+import { StatusPill } from "../components/StatusPill";
+import { Timeline } from "../components/Timeline";
+import { headline, minimumText, modeLabel, recipientText } from "../lib/auth";
+import { formatDecimal } from "../lib/money";
+import { formatInTz } from "../lib/time";
+import { usePolling } from "../lib/usePolling";
 
-export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number }) {
-  const [auth, setAuth] = useState<Authorization | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [canceling, setCanceling] = useState(false)
+export function WatchDetail({
+  id,
+  refreshKey,
+}: {
+  id: string;
+  refreshKey: number;
+}) {
+  const [auth, setAuth] = useState<Authorization | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [canceling, setCanceling] = useState(false);
 
-  const live = !auth || !TERMINAL_STATUSES.has(auth.status)
+  const live = !auth || !TERMINAL_STATUSES.has(auth.status);
   usePolling(
     async () => {
       try {
-        setAuth(await api<Authorization>(`/authorizations/${id}`))
+        setAuth(await api<Authorization>(`/authorizations/${id}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : String(e))
+        setError(e instanceof ApiError ? e.message : String(e));
       }
     },
     2000,
     live,
     `${id}:${refreshKey}`,
-  )
+  );
 
   async function cancel() {
-    if (!window.confirm('Cancel this watch? Nothing will be converted.')) return
-    setCanceling(true)
+    if (!window.confirm("Cancel this watch? Nothing will be converted."))
+      return;
+    setCanceling(true);
     try {
-      setAuth(await api<Authorization>(`/authorizations/${id}/cancel`, { method: 'POST' }))
+      setAuth(
+        await api<Authorization>(`/authorizations/${id}/cancel`, {
+          method: "POST",
+        }),
+      );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e))
+      setError(e instanceof ApiError ? e.message : String(e));
     } finally {
-      setCanceling(false)
+      setCanceling(false);
     }
   }
 
-  if (error && !auth) return <p role="alert">{error}</p>
-  if (!auth) return <p>Loading…</p>
-  const tz = auth.terms.time_zone
+  if (error && !auth) return <p role="alert">{error}</p>;
+  if (!auth) return <p>Loading…</p>;
+  const tz = auth.terms.time_zone;
 
   return (
     <section className="space-y-5" aria-labelledby="detail-title">
       <header className="flex flex-wrap items-center gap-3">
         <h2 id="detail-title" className="text-xl font-semibold">
-          {auth.mode === 'immediate' ? 'Conversion' : 'Watch'}: {formatDecimal(auth.terms.amount_usdc)} USDC → ≥{' '}
-          {formatMXN(auth.terms.min_payout_mxn)}
+          {headline(auth)}
         </h2>
         <StatusPill status={auth.status} />
         <span className="text-xs uppercase tracking-wide text-neutral-500">
-          {auth.mode === 'auto' ? 'Auto-convert' : auth.mode === 'immediate' ? 'Convert now' : 'Notify'}
+          {modeLabel(auth)}
         </span>
       </header>
 
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200"
+        >
           {error}
         </p>
       )}
 
       <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800" aria-live="polite">
-          <h3 className="text-sm font-semibold text-neutral-500">Agent status</h3>
-          <p className="mt-1">{auth.last_reason ?? 'Waiting for first check…'}</p>
-          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <dt className="text-neutral-500">Last check</dt>
-              <dd>{auth.last_check_at ? formatInTz(auth.last_check_at, tz, { date: false }) : '-'}</dd>
-            </div>
-            <div>
-              <dt className="text-neutral-500">Next check</dt>
-              <dd>{auth.next_check_at ? formatInTz(auth.next_check_at, tz, { date: false }) : '-'}</dd>
-            </div>
-          </dl>
+        <div
+          className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800"
+          aria-live="polite"
+        >
+          <h3 className="text-sm font-semibold text-neutral-500">Status</h3>
+          <p className="mt-1">
+            {auth.last_reason ?? "Waiting for first check…"}
+          </p>
+          {(auth.mode === "notify" || auth.mode === "auto") && (
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <dt className="text-neutral-500">Last check</dt>
+                <dd>
+                  {auth.last_check_at
+                    ? formatInTz(auth.last_check_at, tz, { date: false })
+                    : "-"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-neutral-500">Next check</dt>
+                <dd>
+                  {auth.next_check_at
+                    ? formatInTz(auth.next_check_at, tz, { date: false })
+                    : "-"}
+                </dd>
+              </div>
+            </dl>
+          )}
           {auth.can_cancel && (
             <button
               type="button"
@@ -86,8 +115,10 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
               Cancel watch
             </button>
           )}
-          {(auth.status === 'claimed' || auth.status === 'executing') && (
-            <p className="mt-3 text-sm text-neutral-500">Execution is claimed; this can no longer be canceled.</p>
+          {(auth.status === "claimed" || auth.status === "executing") && (
+            <p className="mt-3 text-sm text-neutral-500">
+              Execution is claimed; this can no longer be canceled.
+            </p>
           )}
         </div>
 
@@ -96,11 +127,17 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
           <dl className="mt-2 space-y-1.5">
             <div>
               <dt className="inline text-neutral-500">Total debit: </dt>
-              <dd className="inline font-mono">{formatDecimal(auth.terms.amount_usdc)} USDC</dd>
+              <dd className="inline font-mono">
+                {formatDecimal(auth.terms.amount_usdc)} USDC
+              </dd>
             </div>
             <div>
-              <dt className="inline text-neutral-500">Minimum payout: </dt>
-              <dd className="inline font-mono">{formatMXN(auth.terms.min_payout_mxn)}</dd>
+              <dt className="inline text-neutral-500">
+                {auth.mode === "send"
+                  ? "They receive at least: "
+                  : "Minimum payout: "}
+              </dt>
+              <dd className="inline font-mono">{minimumText(auth)}</dd>
             </div>
             {auth.terms.deadline_display && (
               <div>
@@ -110,9 +147,7 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
             )}
             <div>
               <dt className="inline text-neutral-500">To: </dt>
-              <dd className="inline">
-                {auth.terms.destination.alias} ({auth.terms.destination.masked_account})
-              </dd>
+              <dd className="inline">{recipientText(auth)}</dd>
             </div>
             {auth.intent_text && (
               <div>
@@ -126,7 +161,7 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
 
       <Receipt auth={auth} />
 
-      {auth.status === 'notified' && (
+      {auth.status === "notified" && (
         <a
           href="#/compare"
           className="inline-block rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700"
@@ -140,5 +175,5 @@ export function WatchDetail({ id, refreshKey }: { id: string; refreshKey: number
         <Timeline events={auth.events} tz={tz} />
       </div>
     </section>
-  )
+  );
 }

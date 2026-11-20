@@ -52,6 +52,7 @@ def revalidate(
     """Every check that must hold at the instant before signing. Empty list = go."""
     if quote is None:
         return ["the selected route did not return a fresh quote"]
+    assert auth.min_payout_mxn is not None
     failures: list[str] = []
     if auth.status != "claimed":
         failures.append(f"authorization is {auth.status}, not claimed")
@@ -167,6 +168,7 @@ def execute_claimed(
             db.commit()
             return outcome
 
+        assert auth.min_payout_mxn is not None
         amount = onchain_amount(auth.input_usdc, settings)
         execution = Execution(
             authorization_id=auth.id,
@@ -176,6 +178,8 @@ def execute_claimed(
             quoted_net_mxn=quote.net_mxn,
             onchain_amount_usdc=amount,
             settlement_mode=settler.mode,
+            out_currency="MXN",
+            quoted_out=quote.net_mxn,
         )
         db.add(execution)
         try:

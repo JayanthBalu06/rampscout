@@ -16,3 +16,13 @@ export function formatDecimal(value: string, fractionDigits = 2): string {
 
 export const formatMXN = (v: string) => `MX$${formatDecimal(v, 2)}`
 export const formatUSDC = (v: string) => `${formatDecimal(v, 2)} USDC`
+
+const SYMBOLS: Record<string, string> = { MXN: 'MX$', ARS: 'AR$', COP: 'COL$', BRL: 'R$' }
+
+/** Any supported currency: fiat with symbol and 2 dp, crypto with its code. */
+export function formatAmount(ccy: string, v: string): string {
+  if (SYMBOLS[ccy]) return `${SYMBOLS[ccy]}${formatDecimal(v, 2)}`
+  const [, frac = ''] = v.split('.')
+  const places = Math.min(Math.max(frac.replace(/0+$/, '').length, 2), 8)
+  return `${formatDecimal(v, places)} ${ccy}`
+}

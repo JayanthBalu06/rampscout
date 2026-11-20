@@ -4,9 +4,9 @@
 
 **Live demo: https://rampscout.onrender.com** (free tier; first load after idle takes ~1 min)
 
-**Rates lie, payouts don't.** RampScout compares USDC → MXN off-ramp routes by the pesos that actually reach the recipient's bank. An AI agent can watch for a target payout and act only within limits the user approves.
+**Rates lie, payouts don't.** Send USDC to anyone (a Mexican bank account, an Argentine one, a crypto wallet) and RampScout finds the route that delivers the most, using **live Bitso order books**. Or let an AI agent wait for a target payout and act only within limits you approve.
 
-Built for the **Agentic Payments & AI** track. Prototype scope: one corridor (USDC → MXN), one demo user, one saved Mexican bank account, two synthetic providers, and a real **Base Sepolia** USDC transfer. Fiat conversion and the bank deposit are simulated and labeled that way everywhere.
+Built for the **Agentic Payments & AI** track. The USDC transfer is **real on Base Sepolia**; exchange legs are priced from **live Bitso market data**; fiat payouts are simulated, and every screen labels which is which.
 
 ![Compare screen: Route A advertises the higher rate but Route B pays more pesos](docs/img/compare.png)
 
@@ -26,11 +26,38 @@ net MXN = floor_to_centavos( (input USDC − USDC fee − gas) × rate − MXN w
 
 Users can convert now, or ask the agent: *"Convert 600 USDC if I can receive at least 10,000 pesos by Friday at 5 p.m. Mexico City time."* Waiting is optional, and it can end with a worse quote or no conversion at all. The UI says so before you confirm.
 
+## Send: the best route, found automatically
+
+Pick a saved contact and an amount. That's all. RampScout searches every route up to three conversions deep across Bitso's live markets (USD, USDT, BTC, ETH into MXN, ARS, COP, BRL) and ranks them by what the recipient actually receives:
+
+```
+600 USDC → Mamá (BBVA, MXN), live Bitso data:
+  #1 USDC → USD → MXN           MX$11,327.44
+  #2 USDC → USDT → MXN          MX$11,318.51   (−MX$8.93)
+  #3 USDC → USD → USDT → MXN    MX$11,287.91   (−MX$39.53)
+  …  USDC → USDT → BTC → MXN    MX$11,268.60   (−MX$58.84)
+```
+
+- **Exact, not approximate.** Each exchange hop walks the real order book level by level (depth and slippage included), charges Bitso's published taker fee for that market, and rounds down to the currency's minor unit, because each hop is a separate trade. With a handful of currencies, exhaustive search over simple paths is exact and takes milliseconds. Shortest-path shortcuts like Dijkstra over −log(rate) are only correct when every fee is a pure percentage, and fixed fees, book depth and per-hop rounding break that (`test_routing.py::test_fixed_fee_flips_ranking_by_size`).
+- **Honest about gaps.** Bitso lists no USDC market, so USDC enters through a stablecoin-swap leg explicitly labeled *assumption* (1:1, 0.05% fee, configurable). If Bitso is unreachable, a recorded snapshot is used and flagged.
+- **Price protection without asking the user.** The confirmed minimum is the quote minus 0.5%. Right before signing, the exact path is **re-priced on fresh market data**; if the recipient would get less than the minimum, nothing is sent.
+- **Contacts, not raw addresses.** Wallet addresses and bank accounts (CLABE check digit validated) are entered once, reviewed and confirmed; sends can only target confirmed contacts by ID. The model never touches them.
+- **Same safety rails as the agent:** idempotency keys, one execution per authorization, save-before-broadcast, reconciliation by hash.
+
+| Contact | Route | What's real |
+|---|---|---|
+| Bank (MXN, ARS, COP, BRL) | onchain USDC → venue wallet, then Bitso conversions, then payout | USDC transfer real (testnet); prices live; payout simulated |
+| Wallet (USDC) | direct onchain transfer to the contact | fully real on Base Sepolia |
+
+![Send: best live route with hop-by-hop breakdown](docs/img/send.png)
+
 ## What is real and what is simulated
 
 | Layer | In this prototype | Labeled as |
 |---|---|---|
-| Quote providers A and B | Synthetic fixtures with a reproducible tick script; fresh quote id and expiry per fetch | "Synthetic quote" |
+| Send-flow exchange prices | **Live Bitso public order books + published taker fees** (or a recorded snapshot, flagged) | "Live · Bitso" / "Recorded" |
+| USDC → USD/USDT entry leg | Assumed 1:1 swap with a small fee (Bitso has no USDC market) | "Assumption" |
+| Compare/Watch providers A and B | Synthetic fixtures with a reproducible tick script; fresh quote id and expiry per fetch | "Synthetic quote" |
 | Payout math, ranking, eligibility | Real (decimal, deterministic, tested) | n/a |
 | Natural-language drafting | Claude API with structured output (optional); a deterministic rules parser when no key is set | "Drafted by Claude / rules parser" |
 | USDC transfer | **Real ERC-20 transfer on Base Sepolia** when a funded test wallet is configured, scaled 1:100 for faucet limits. Otherwise a local simulated ledger running the same state machine. | "Testnet · real transfer" + explorer link, or "Simulated" |
@@ -121,9 +148,9 @@ make web                   # Vite on :5173, proxies /api → :8000
 **Tests:**
 
 ```bash
-make test                  # 91 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
+make test                  # 120 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
 make lint                  # ruff, mypy (strict on the domain layer), oxlint, tsc
-make e2e                   # 5 Playwright journeys against the Docker stack
+make e2e                   # 7 Playwright journeys against the Docker stack
 ```
 
 **Demo:** [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) is the two-minute talk track. `make demo` runs the same journey in a terminal.
@@ -146,6 +173,8 @@ See [`.env.example`](.env.example). Key variables:
 | `SIGNER_PRIVATE_KEY`, `SIGNER_ADDRESS` | Dedicated test wallet (`make wallet`) |
 | `ROUTE_A_SETTLEMENT_ADDRESS`, `ROUTE_B_SETTLEMENT_ADDRESS` | Server-configured provider wallets |
 | `DEMO_TRANSFER_SCALE` | `0.01`: 600 authorized → 6 test USDC onchain (Circle's faucet gives 20 USDC / 2 h) |
+| `MARKET_SOURCE` | `live` (Bitso public API, no key) or `recorded` (bundled snapshot) |
+| `STABLE_SWAP_FEE_BPS`, `SLIPPAGE_BPS`, `MAX_ROUTE_HOPS` | Assumed USDC entry fee, price-protection tolerance, search depth |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Optional; defaults to `claude-opus-5-5` at low effort |
 
 A missing RPC URL or signer disables testnet execution, and every page shows the reason.
@@ -156,6 +185,8 @@ What was actually run while building this, as opposed to what is only designed:
 
 | Flow | Status |
 |---|---|
+| Send: live multi-hop routing to MXN, ARS, COP and USDC wallet contacts; re-price before signing; contact validation | ✅ unit, API and browser tests (recorded snapshot); live Bitso routing exercised in the browser |
+| Send on Base Sepolia (bank route) | ✅ live Bitso route USDC → USD → MXN re-priced and paid; 0.60 USDC transfer [`0xd510…3fa7`](https://sepolia.basescan.org/tx/0xd510fe1c1118965c1a324b4c6b6208ad630e4d8e412f9a801950731433c23fa7) (block 61351171) |
 | Quote comparison, the brief's exact payouts, exclusions, provider outage and timeout | ✅ unit, API and browser tests |
 | Notify watch: tick 0 waits, tick 1 notifies, survives reload | ✅ API and browser (Playwright) |
 | Auto watch: claim → revalidate → settle → receipt | ✅ API and browser, local simulated ledger |
@@ -172,15 +203,17 @@ What was actually run while building this, as opposed to what is only designed:
 ## Future work (not in this prototype)
 
 - **Measured outcomes:** backtest the watch policy against immediate best-route execution over the same historical start times, counting expired watches and worse-than-immediate outcomes. None of the prototype's numbers are measured market outcomes.
-- Real provider integrations (RFQ APIs) replacing the fixtures; the adapter interface already returns provider ID, quote ID, terms, expiry, ETA and data source.
+- Real execution on the exchange legs (authenticated Bitso trading and SPEI withdrawals); today those legs are priced live but settled as a simulation.
+- A live USDC entry price (DEX quote on Base) instead of the labeled 1:1 assumption.
+- Live data for the watch agent (it uses the reproducible fixtures today).
 - User-paid gas: the payout formula already has the `gas_cost_usdc` term, so ranking would account for it with no refactor.
 - MXN → USDC direction, more chains, real accounts and auth, and KYC.
 
 ## Repo map
 
 ```
-backend/rampscout/domain      pure payout math, eligibility, ranking, decision, clocks (mypy --strict)
-backend/rampscout/providers   fixture providers + concurrent fetch with timeouts
+backend/rampscout/domain      pure payout math, multi-hop routing, eligibility, decision, clocks (mypy --strict)
+backend/rampscout/providers   live Bitso adapter (+ recorded snapshot), fixture providers, concurrent fetch
 backend/rampscout/agent       evaluate (watch loop), execute (claim/revalidate), intent (Claude + rules)
 backend/rampscout/settlement  chain settler, Base Sepolia client, simulated ledger, reconciler, status
 backend/rampscout/api         FastAPI app, schemas, routes, production server (API + UI)

@@ -10,15 +10,18 @@ from sqlalchemy.orm import Session
 from rampscout.api.schemas import (
     AuthorizationOut,
     ClockOut,
+    ContactOut,
     DestinationOut,
     ExcludedOut,
     FeeBreakdownOut,
+    HopOut,
     ProviderErrorOut,
     QuoteOut,
+    RouteOut,
     SettlementOut,
 )
 from rampscout.config import Settings
-from rampscout.db.models import Authorization, DemoSession, Destination
+from rampscout.db.models import Authorization, Contact, DemoSession, Destination, RouteQuote
 from rampscout.demo import DEMO_DISPLAY_TZ
 from rampscout.domain.eligibility import Exclusion
 from rampscout.domain.quotes import Quote
@@ -126,9 +129,10 @@ def authorization_out(db: Session, auth: Authorization, settings: Settings) -> A
     from rampscout.db.models import DecisionEvent, Execution, QuoteSnapshot
     from rampscout.services.quoting import snapshot_to_quote
 
-    dest = db.get(Destination, auth.destination_id)
+    dest = db.get(Destination, auth.destination_id) if auth.destination_id else None
     session = db.get(DemoSession, auth.session_id)
-    assert dest is not None and session is not None
+    assert session is not None
+    contact = db.get(Contact, auth.contact_id) if auth.contact_id else None
     events = db.scalars(
         select(DecisionEvent)
         .where(DecisionEvent.authorization_id == auth.id)
@@ -149,6 +153,10 @@ def authorization_out(db: Session, auth: Authorization, settings: Settings) -> A
             route_id=ex.route_id,
             input_usdc=ex.input_usdc,
             quoted_net_mxn=ex.quoted_net_mxn,
+            out_currency=ex.out_currency,
+            quoted_out=ex.quoted_out,
+            delivered_out=ex.delivered_out,
+            recipient_label=ex.recipient_label,
             onchain_amount_usdc=ex.onchain_amount_usdc,
             transfer_scale=format(settings.demo_transfer_scale, "f"),
             settlement_mode=ex.settlement_mode,
@@ -182,7 +190,7 @@ def authorization_out(db: Session, auth: Authorization, settings: Settings) -> A
             amount_usdc=auth.input_usdc,
             currency="USDC",
             min_payout_mxn=auth.min_payout_mxn,
-            destination=destination_out(dest),
+            destination=destination_out(dest) if dest else None,
             deadline_utc=auth.deadline_utc,
             deadline_display=(
                 format_deadline(auth.deadline_utc, auth.display_tz) if auth.deadline_utc else None
@@ -214,6 +222,14 @@ def authorization_out(db: Session, auth: Authorization, settings: Settings) -> A
         execution=execution,
         executed_quote=executed_quote,
         clock=clock_out(session),
+        contact=contact_out(contact) if contact else None,
+        out_currency=auth.out_currency,
+        min_out=auth.min_out,
+        route=route_out(
+            db.get(RouteQuote, ex.quote_id if ex and auth.mode == "send" else auth.route_quote_id)
+        )
+        if auth.mode == "send"
+        else None,
     )
 
 
@@ -231,3 +247,35 @@ def execution_state_label(chain_status: str, payout_status: str) -> str:
         "mismatch": "receipt did not match; held for review",
         "rejected": "rejected by the network",
     }.get(chain_status, "not started")
+
+
+def contact_out(c: Contact) -> ContactOut:
+    return ContactOut(
+        id=c.id,
+        name=c.name,
+        kind=c.kind,
+        currency=c.currency,
+        country=c.country,
+        bank_name=c.bank_name,
+        account_masked=c.account_masked,
+        wallet_address=c.wallet_address,
+        status=c.status,
+    )
+
+
+def route_out(r: RouteQuote | None, best_out: Decimal | None = None) -> RouteOut | None:
+    if r is None:
+        return None
+    return RouteOut(
+        route_quote_id=r.id,
+        rank=r.rank,
+        path=r.path,
+        hops=[HopOut(**h) for h in r.hops],
+        amount_in=_trim(r.amount_in),
+        from_ccy=r.from_ccy,
+        amount_out=_trim(r.amount_out),
+        to_ccy=r.to_ccy,
+        eta_seconds=r.eta_seconds,
+        expires_at=r.expires_at,
+        behind_best=_trim(best_out - r.amount_out) if best_out is not None else None,
+    )

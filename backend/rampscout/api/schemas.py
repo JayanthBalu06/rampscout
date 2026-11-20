@@ -277,8 +277,8 @@ class AuthorizationIn(Strict):
 class TermsOut(BaseModel):
     amount_usdc: Dec
     currency: str
-    min_payout_mxn: Dec
-    destination: DestinationOut
+    min_payout_mxn: Dec | None
+    destination: DestinationOut | None
     deadline_utc: datetime | None
     deadline_display: str | None
     time_zone: str
@@ -301,7 +301,11 @@ class ExecutionOut(BaseModel):
     quote_id: str
     route_id: str
     input_usdc: Dec
-    quoted_net_mxn: Dec
+    quoted_net_mxn: Dec | None
+    out_currency: str | None
+    quoted_out: Dec | None
+    delivered_out: Dec | None
+    recipient_label: str | None
     onchain_amount_usdc: Dec
     transfer_scale: str
     settlement_mode: str
@@ -341,6 +345,10 @@ class AuthorizationOut(BaseModel):
     execution: ExecutionOut | None
     executed_quote: QuoteOut | None
     clock: ClockOut
+    contact: ContactOut | None = None
+    out_currency: str | None = None
+    min_out: Dec | None = None
+    route: RouteOut | None = None  # send: the route actually executed (or the one confirmed)
 
 
 class NotificationOut(BaseModel):
@@ -377,3 +385,91 @@ class PreviewOut(BaseModel):
     current_best_route: str | None
     current_best_net_mxn: Dec | None
     meets_target_now: bool
+
+
+# ---------- contacts & send ----------
+
+
+class ContactIn(Strict):
+    name: str
+    kind: Literal["bank", "wallet"]
+    currency: Literal["MXN", "ARS", "COP", "BRL", "USDC"]
+    bank_name: str | None = None
+    account: str | None = None
+    wallet_address: str | None = None
+
+
+class ContactOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    kind: str
+    currency: str
+    country: str | None
+    bank_name: str | None
+    account_masked: str | None
+    wallet_address: str | None
+    status: str
+
+
+class HopOut(BaseModel):
+    leg_id: str
+    kind: str
+    venue: str
+    from_ccy: str
+    to_ccy: str
+    amount_in: str
+    amount_out: str
+    fee: str
+    avg_price: str | None
+    eta_seconds: int
+    source: str
+    note: str
+
+
+class RouteOut(BaseModel):
+    route_quote_id: str
+    rank: int
+    path: str
+    hops: list[HopOut]
+    amount_in: Dec
+    from_ccy: str
+    amount_out: Dec
+    to_ccy: str
+    eta_seconds: int
+    expires_at: datetime
+    behind_best: Dec | None
+
+
+class MarketOut(BaseModel):
+    source: Literal["live", "recorded"]
+    as_of: datetime
+    venue: str
+    fell_back: bool
+    errors: dict[str, str]
+
+
+class SendRoutesIn(Strict):
+    contact_id: uuid.UUID
+    amount_usdc: UsdcIn
+    source: Literal["live", "recorded"] | None = None
+
+
+class SendRoutesOut(BaseModel):
+    contact: ContactOut
+    amount_usdc: Dec
+    routes: list[RouteOut]
+    best_route_id: str | None
+    min_out: Dec | None
+    slippage_bps: int
+    market: MarketOut
+    settlement: SettlementOut
+    onchain_amount_usdc: Dec
+
+
+class SendIn(Strict):
+    contact_id: uuid.UUID
+    amount_usdc: UsdcIn
+    route_quote_id: str
+
+
+AuthorizationOut.model_rebuild()

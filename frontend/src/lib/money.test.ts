@@ -17,3 +17,13 @@ describe('formatDecimal', () => {
     expect(formatMXN('9976.30')).toBe('MX$9,976.30')
   })
 })
+
+import { formatAmount } from './money'
+
+describe('formatAmount', () => {
+  it('formats fiat with symbols and crypto with codes', () => {
+    expect(formatAmount('ARS', '1049621.00')).toBe('AR$1,049,621.00')
+    expect(formatAmount('USDC', '600')).toBe('600.00 USDC')
+    expect(formatAmount('BTC', '0.00198440')).toBe('0.0019844 BTC')
+  })
+})

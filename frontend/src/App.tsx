@@ -5,6 +5,7 @@ import { DemoBar } from './components/DemoBar'
 import { NotificationBanner } from './components/Notifications'
 import { useHashRoute } from './lib/router'
 import { Compare } from './pages/Compare'
+import { Send } from './pages/Send'
 import { WatchBuilder } from './pages/WatchBuilder'
 import { WatchDetail } from './pages/WatchDetail'
 import { WatchList } from './pages/WatchList'
@@ -30,8 +31,8 @@ export default function App() {
     }
   }
 
-  const watchId = path.match(/^\/watch\/([0-9a-f-]{36})$/)?.[1]
-  const tab = path.startsWith('/watch') ? 'watch' : 'compare'
+  const watchId = path.match(/^\/(?:watch|a)\/([0-9a-f-]{36})$/)?.[1]
+  const tab = watchId ? null : path.startsWith('/watch') ? 'watch' : path.startsWith('/send') ? 'send' : 'compare'
 
   return (
     <div className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
@@ -39,11 +40,12 @@ export default function App() {
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">RampScout</h1>
-            <p className="text-neutral-500">USDC → MXN, ranked by pesos that actually reach the bank.</p>
+            <p className="text-neutral-500">Send USDC anywhere: we find the route that delivers the most.</p>
           </div>
           <nav aria-label="Main" className="flex gap-1 rounded-lg bg-neutral-100 p-1 text-sm dark:bg-neutral-900">
             {(
               [
+                ['send', '/send', 'Send'],
                 ['compare', '/compare', 'Compare'],
                 ['watch', '/watch/new', 'Watch for a target'],
               ] as const
@@ -70,10 +72,12 @@ export default function App() {
         <NotificationBanner refreshKey={refreshKey} />
         {watchId ? (
           <WatchDetail id={watchId} refreshKey={refreshKey} />
+        ) : tab === 'send' ? (
+          <Send onSent={(id) => navigate(`/a/${id}`)} />
         ) : tab === 'watch' ? (
           <WatchBuilder onCreated={(id) => navigate(`/watch/${id}`)} />
         ) : (
-          <Compare refreshKey={refreshKey} onConverted={(id) => navigate(`/watch/${id}`)} />
+          <Compare refreshKey={refreshKey} onConverted={(id) => navigate(`/a/${id}`)} />
         )}
         <WatchList refreshKey={refreshKey} />
       </main>

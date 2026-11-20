@@ -114,8 +114,13 @@ class Authorization(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
 
     input_usdc: Mapped[Decimal] = mapped_column(USDC)
-    min_payout_mxn: Mapped[Decimal] = mapped_column(MXN)
-    destination_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("destinations.id"))
+    min_payout_mxn: Mapped[Decimal | None] = mapped_column(MXN)
+    destination_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("destinations.id"))
+    # Send flow (mode="send"): pay a saved contact via the best route.
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id"))
+    out_currency: Mapped[str | None] = mapped_column(String(8))
+    min_out: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    route_quote_id: Mapped[str | None] = mapped_column(String(64))
     deadline_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     display_tz: Mapped[str] = mapped_column(String(64))
     selected_quote_id: Mapped[str | None] = mapped_column(String(64))
@@ -188,9 +193,14 @@ class Execution(Base):
         ForeignKey("authorizations.id", ondelete="CASCADE"), unique=True
     )
     quote_id: Mapped[str] = mapped_column(String(64))
-    route_id: Mapped[str] = mapped_column(String(8))
+    route_id: Mapped[str] = mapped_column(String(64))
     input_usdc: Mapped[Decimal] = mapped_column(USDC)
-    quoted_net_mxn: Mapped[Decimal] = mapped_column(MXN)
+    quoted_net_mxn: Mapped[Decimal | None] = mapped_column(MXN)
+    # Generic (any currency) quoted/delivered amounts, used by the send flow.
+    out_currency: Mapped[str | None] = mapped_column(String(8))
+    quoted_out: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    delivered_out: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    recipient_label: Mapped[str | None] = mapped_column(String(120))
     onchain_amount_usdc: Mapped[Decimal] = mapped_column(USDC)
     settlement_mode: Mapped[str] = mapped_column(String(16))  # testnet | simulated
     recipient_address: Mapped[str | None] = mapped_column(String(42))
@@ -233,3 +243,52 @@ class SimChainTx(Base):
     block_number: Mapped[int | None] = mapped_column(Integer)
     send_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Contact(Base):
+    """A saved recipient. Wallet addresses and bank accounts are entered once, reviewed and
+    confirmed by the user; sends can only target confirmed contacts, by id."""
+
+    __tablename__ = "contacts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(String(64), index=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("demo_sessions.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(String(8))  # bank | wallet
+    currency: Mapped[str] = mapped_column(String(8))  # what they receive
+    country: Mapped[str | None] = mapped_column(String(2))
+    bank_name: Mapped[str | None] = mapped_column(String(80))
+    account_masked: Mapped[str | None] = mapped_column(String(40))
+    wallet_address: Mapped[str | None] = mapped_column(String(42))
+    status: Mapped[str] = mapped_column(String(12), default="pending")  # pending | confirmed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RouteQuote(Base):
+    """A priced multi-hop route, as shown to the user (and re-priced before execution)."""
+
+    __tablename__ = "route_quotes"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("demo_sessions.id", ondelete="CASCADE"), index=True
+    )
+    contact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("contacts.id", ondelete="CASCADE"))
+    authorization_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    amount_in: Mapped[Decimal] = mapped_column(Numeric(38, 18))
+    from_ccy: Mapped[str] = mapped_column(String(8))
+    amount_out: Mapped[Decimal] = mapped_column(Numeric(38, 18))
+    to_ccy: Mapped[str] = mapped_column(String(8))
+    path: Mapped[str] = mapped_column(String(120))
+    leg_ids: Mapped[list[str]] = mapped_column(ARRAY(String(64)))
+    hops: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    rank: Mapped[int] = mapped_column(Integer)
+    eta_seconds: Mapped[int] = mapped_column(Integer)
+    market_source: Mapped[str] = mapped_column(String(12))
+    market_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -21,7 +21,7 @@ export function NotificationBanner({ refreshKey }: { refreshKey: number }) {
         <p className="text-sm text-emerald-50">{n.body}</p>
       </div>
       <div className="flex gap-2">
-        <a href={`#/watch/${n.authorization_id}`} className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-emerald-800">
+        <a href={`#/a/${n.authorization_id}`} className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-emerald-800">
           View
         </a>
         <button type="button" onClick={dismiss} className="rounded-md border border-white/60 px-3 py-1.5 text-sm">

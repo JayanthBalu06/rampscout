@@ -80,3 +80,26 @@ test('expired quote requires fresh confirmation', async ({ page }) => {
   await page.getByRole('button', { name: 'Confirm new quote' }).click()
   await expect(page.getByText('Posted to bank (simulated SPEI)')).toBeVisible()
 })
+
+test('send picks the best live route automatically and pays the contact', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/send')
+  await expect(page.getByText('Best route')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText(/Mamá receives/)).toBeVisible()
+  await expect(page.getByText(/routes compared/)).toBeVisible()
+  await page.getByRole('button', { name: /^Send 600/ }).click()
+  await page.getByRole('button', { name: 'Confirm and send' }).click()
+  await expect(page.getByRole('heading', { name: 'Receipt' })).toBeVisible()
+  await expect(page.getByText('Executed route')).toBeVisible()
+  await expect(page.getByText('Posted to bank (simulated SPEI)')).toBeVisible()
+})
+
+test('send to a wallet contact is a direct onchain transfer', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/send')
+  await page.getByRole('button', { name: /Ana/ }).click()
+  await expect(page.getByText('600.00 USDC').first()).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: /^Send 600/ }).click()
+  await page.getByRole('button', { name: 'Confirm and send' }).click()
+  await expect(page.getByText('Delivered to wallet onchain')).toBeVisible()
+})

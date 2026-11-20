@@ -7,7 +7,6 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 from sqlalchemy import text
 
 from rampscout.config import Settings, get_settings
@@ -15,6 +14,8 @@ from rampscout.db import session as db_session
 
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TABLES = [
+    "route_quotes",
+    "contacts",
     "sim_chain_txs",
     "executions",
     "notifications",
@@ -28,13 +29,13 @@ TABLES = [
 
 @pytest.fixture(scope="session", autouse=True)
 def _hermetic_settings() -> None:
-    """Tests must never touch a real chain, wallet or model API, whatever is in .env."""
+    """Tests use code defaults for everything except the database, whatever .env says:
+    never a real chain, wallet, model API or live market."""
     s = get_settings()
-    s.rpc_url = s.rpc_send_url = s.signer_address = ""
-    s.route_a_settlement_address = s.route_b_settlement_address = ""
-    s.signer_private_key = SecretStr("")
-    s.anthropic_api_key = SecretStr("")
-    s.embedded_worker = False
+    for name, f in Settings.model_fields.items():
+        if name not in ("database_url", "test_database_url"):
+            setattr(s, name, f.get_default(call_default_factory=True))
+    s.market_source = "recorded"
 
 
 @pytest.fixture(scope="session", autouse=True)

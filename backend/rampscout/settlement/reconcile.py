@@ -18,7 +18,7 @@ from rampscout.agent.clocks import check_interval, clock_for_auth
 from rampscout.agent.events import record
 from rampscout.agent.execute import execute_claimed
 from rampscout.config import Settings
-from rampscout.db.models import Authorization, Execution, QuoteSnapshot
+from rampscout.db.models import Authorization, Execution, QuoteSnapshot, RouteQuote
 from rampscout.db.session import SessionLocal
 from rampscout.domain.decision import next_check
 from rampscout.settlement.factory import get_settler, settler_for_mode
@@ -42,10 +42,12 @@ def _void_unsigned(execution_id: uuid.UUID, settings: Settings) -> bool:
         snap = db.scalars(
             select(QuoteSnapshot).where(QuoteSnapshot.quote_id == ex.quote_id)
         ).one_or_none()
-        if snap is not None and now < snap.expires_at:
-            return False
+        route = db.get(RouteQuote, ex.quote_id)
+        expires_at = snap.expires_at if snap else route.expires_at if route else None
+        if expires_at is None or now < expires_at:
+            return False  # quote still valid (or unknown): let the normal path sign it
         db.delete(ex)
-        if auth.mode != "immediate" and auth.deadline_utc and now < auth.deadline_utc:
+        if auth.mode not in ("immediate", "send") and auth.deadline_utc and now < auth.deadline_utc:
             auth.status = "watching"
             auth.next_check_at = next_check(now + check_interval(settings), auth.deadline_utc)
             reason = (
@@ -93,6 +95,12 @@ def reconcile(settings: Settings, *, session_id: uuid.UUID | None = None) -> int
         orphans = db.execute(orphans_q).all()
 
     for auth_id, mode, route, quote_id in orphans:
+        if mode == "send":
+            from rampscout.services.send import execute_send
+
+            execute_send(auth_id, settings=settings, settler=get_settler(settings))
+            touched += 1
+            continue
         execute_claimed(
             auth_id,
             settings=settings,

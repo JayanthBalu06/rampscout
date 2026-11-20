@@ -59,6 +59,15 @@ class Settings(BaseSettings):
     min_signer_usdc: Decimal = Decimal("6")
     explorer_tx_url: str = "https://sepolia.basescan.org/tx/"
 
+    # Send / live routing
+    market_source: Literal["live", "recorded"] = "live"  # recorded = bundled Bitso snapshot
+    stable_swap_fee_bps: int = 5  # assumed USDC->USDT/USD swap (Bitso has no USDC market)
+    slippage_bps: int = 50  # auto minimum: quoted amount minus this tolerance
+    route_quote_ttl_seconds: int = 30
+    max_route_hops: int = 3
+    # Server-configured wallet that stands in for the exchange's USDC deposit address.
+    venue_deposit_address: str = ""
+
     anthropic_api_key: SecretStr = SecretStr("")
     anthropic_model: str = "claude-opus-5-5"
     anthropic_timeout_seconds: float = 20.0
@@ -70,6 +79,7 @@ class Settings(BaseSettings):
         "route_a_settlement_address",
         "route_b_settlement_address",
         "usdc_contract",
+        "venue_deposit_address",
         mode="before",
     )
     @classmethod

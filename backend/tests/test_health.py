@@ -57,3 +57,9 @@ def test_pasted_values_are_trimmed():
     )
     assert s.route_a_settlement_address == "0x4fF3CFC3e88a508Dd71A8D12d8a79ee43Ec5C23C"
     assert s.signer_private_key.get_secret_value() == "0xabc"
+
+
+def test_session_bootstrap_is_stable(client):
+    first = client.post("/session").json()["session_id"]
+    assert client.post("/session").json()["session_id"] == first
+    assert client.get("/demo/state").json()["session_id"] == first

@@ -91,7 +91,7 @@ export interface DemoState {
   settlement: Settlement
 }
 
-export type Mode = 'immediate' | 'notify' | 'auto'
+export type Mode = 'immediate' | 'notify' | 'auto' | 'send'
 
 export interface IntentDraft {
   amount: Decimal | null
@@ -159,7 +159,11 @@ export interface Execution {
   quote_id: string
   route_id: string
   input_usdc: Decimal
-  quoted_net_mxn: Decimal
+  quoted_net_mxn: Decimal | null
+  out_currency: string | null
+  quoted_out: Decimal | null
+  delivered_out: Decimal | null
+  recipient_label: string | null
   onchain_amount_usdc: Decimal
   transfer_scale: Decimal
   settlement_mode: 'testnet' | 'simulated'
@@ -189,8 +193,8 @@ export interface Authorization {
   terms: {
     amount_usdc: Decimal
     currency: string
-    min_payout_mxn: Decimal
-    destination: Destination
+    min_payout_mxn: Decimal | null
+    destination: Destination | null
     deadline_utc: string | null
     deadline_display: string | null
     time_zone: string
@@ -208,6 +212,10 @@ export interface Authorization {
   execution: Execution | null
   executed_quote: Quote | null
   clock: ClockInfo
+  contact: Contact | null
+  out_currency: string | null
+  min_out: Decimal | null
+  route: RouteQuote | null
 }
 
 export interface AppNotification {
@@ -224,4 +232,57 @@ export const TERMINAL_STATUSES = new Set(['notified', 'completed', 'canceled', '
 
 export interface ApiErrorDetails {
   fresh_quote?: Quote | null
+}
+
+export interface Contact {
+  id: string
+  name: string
+  kind: 'bank' | 'wallet'
+  currency: string
+  country: string | null
+  bank_name: string | null
+  account_masked: string | null
+  wallet_address: string | null
+  status: 'pending' | 'confirmed'
+}
+
+export interface Hop {
+  leg_id: string
+  kind: 'orderbook' | 'swap' | 'transfer' | 'payout'
+  venue: string
+  from_ccy: string
+  to_ccy: string
+  amount_in: Decimal
+  amount_out: Decimal
+  fee: Decimal
+  avg_price: Decimal | null
+  eta_seconds: number
+  source: 'live' | 'recorded' | 'assumption' | 'fixture' | 'real-onchain' | 'simulated'
+  note: string
+}
+
+export interface RouteQuote {
+  route_quote_id: string
+  rank: number
+  path: string
+  hops: Hop[]
+  amount_in: Decimal
+  from_ccy: string
+  amount_out: Decimal
+  to_ccy: string
+  eta_seconds: number
+  expires_at: string
+  behind_best: Decimal | null
+}
+
+export interface SendRoutesResponse {
+  contact: Contact
+  amount_usdc: Decimal
+  routes: RouteQuote[]
+  best_route_id: string | null
+  min_out: Decimal | null
+  slippage_bps: number
+  market: { source: 'live' | 'recorded'; as_of: string; venue: string; fell_back: boolean; errors: Record<string, string> }
+  settlement: Settlement
+  onchain_amount_usdc: Decimal
 }

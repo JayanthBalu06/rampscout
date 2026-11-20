@@ -70,6 +70,7 @@ def evaluate_locked(
     now = clock.now()
     deadline = auth.deadline_utc
     assert deadline is not None, "watches always have a deadline"
+    assert auth.min_payout_mxn is not None and auth.destination_id is not None
 
     if now >= deadline:
         auth.status = "expired"
@@ -108,8 +109,9 @@ def evaluate_locked(
             payload={"provider_id": err.provider_id, "kind": err.kind},
         )
 
+    min_payout = auth.min_payout_mxn
     decision = decide(
-        min_payout_mxn=auth.min_payout_mxn,
+        min_payout_mxn=min_payout,
         ranked=cmp.ranked,
         excluded=cmp.excluded,
         provider_errors=len(cmp.errors),
