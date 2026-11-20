@@ -6,10 +6,14 @@ const EXAMPLE = 'Convert 600 USDC if I can receive at least 10,000 pesos by Frid
 async function freshSession(page: Page) {
   await page.goto('/#/compare')
   await expect(page.getByText(/tick \d+/)).toBeVisible()
-  const quoted = page.waitForResponse((r) => r.url().endsWith('/api/quotes') && r.ok())
+  // Wait for the reset itself, then for the quotes fetched *after* it (on a slow host the
+  // initial page-load quotes can arrive late and be mistaken for fresh ones).
+  const reset = page.waitForResponse((r) => r.url().endsWith('/api/demo/reset') && r.ok())
   await page.getByRole('button', { name: 'Reset' }).click()
-  await quoted
+  await reset
+  await page.waitForResponse((r) => r.url().endsWith('/api/quotes') && r.ok())
   await expect(page.getByText(/tick 0/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Compare routes' })).toBeVisible()
 }
 
 test('compare shows why the higher rate pays fewer pesos', async ({ page }) => {
@@ -42,7 +46,9 @@ test('auto watch revalidates and settles with a receipt', async ({ page }) => {
   await page.goto('/#/watch/new')
   await page.getByLabel(/Ask the agent/).fill(EXAMPLE)
   await page.getByRole('button', { name: 'Draft terms' }).click()
+  await expect(page.getByText(/Drafted by/)).toBeVisible()
   await page.getByRole('button', { name: 'Review terms' }).click()
+  await expect(page.getByRole('heading', { name: 'Review and confirm' })).toBeVisible()
   await page.getByLabel(/Auto-convert/).check()
   await expect(page.getByText(/demo scale/)).toBeVisible()
   await page.getByRole('button', { name: 'Confirm and start watching' }).click()

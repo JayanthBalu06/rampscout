@@ -51,8 +51,8 @@ test-backend:
 test-frontend:
 	cd frontend && npm test
 
-e2e: ## Browser tests against the full stack (starts it with docker compose)
-	docker compose --profile app up -d --build --wait
+e2e: ## Browser tests against the full stack in simulated mode (never spends test USDC)
+	docker compose -f docker-compose.yml -f docker-compose.e2e.yml --profile app up -d --build --force-recreate --wait
 	cd frontend && npx playwright install chromium && npx playwright test
 
 stack: ## Run the whole app in Docker at http://localhost:8000

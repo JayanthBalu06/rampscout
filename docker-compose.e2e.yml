@@ -1,0 +1,11 @@
+# Used by `make e2e`: same stack, but forced onto the simulated ledger so browser tests
+# never spend real test USDC, whatever is in .env.
+services:
+  web:
+    environment:
+      SIGNER_PRIVATE_KEY: ""
+      ANTHROPIC_API_KEY: ""
+  worker:
+    environment:
+      SIGNER_PRIVATE_KEY: ""
+      ANTHROPIC_API_KEY: ""

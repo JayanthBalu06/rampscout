@@ -27,9 +27,9 @@ services:
       - key: CLOCK_MODE
         value: fixture
       - key: DEMO_TRANSFER_SCALE
-        value: "0.01"
+        value: "0.001"  # 600 authorized -> 0.60 test USDC per run
       - key: MIN_SIGNER_USDC
-        value: "6"
+        value: "0.6"
       - key: MAX_ONCHAIN_TRANSFER_USDC
         value: "10"
       - key: DAILY_ONCHAIN_RUNS
