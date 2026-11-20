@@ -21,6 +21,7 @@ class Settings(BaseSettings):
         "postgresql+psycopg://rampscout:rampscout@localhost:5432/rampscout_test"
     )
     cors_origins: str = "http://localhost:5173"
+    cookie_secure: bool = False  # true when the UI is served cross-site over HTTPS
 
     demo_mode: bool = True
     demo_clock_start: datetime = datetime.fromisoformat("2026-11-27T17:00:00+00:00")

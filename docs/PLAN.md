@@ -29,20 +29,20 @@ rampscout/
 ```
 
 ## Phase 0 — Scaffold (≈2 h)
-- [ ] git init, Python 3.11 venv, pyproject (fastapi, uvicorn, sqlalchemy, psycopg, alembic, pydantic-settings, web3, anthropic, structlog, pytest, httpx, ruff, mypy)
-- [ ] docker-compose Postgres 16, Makefile targets, `.env.example`, `.gitignore`
-- [ ] Vite React TS + Tailwind skeleton, API client with typed money-as-string
-- [ ] CI workflow: Postgres service, backend lint/type/test, frontend tsc/lint/vitest
+- [x] git init, Python 3.11 venv, pyproject (fastapi, uvicorn, sqlalchemy, psycopg, alembic, pydantic-settings, web3, anthropic, structlog, pytest, httpx, ruff, mypy)
+- [x] docker-compose Postgres 16, Makefile targets, `.env.example`, `.gitignore`
+- [x] Vite React TS + Tailwind skeleton, API client with typed money-as-string
+- [x] CI workflow: Postgres service, backend lint/type/test, frontend tsc/lint/vitest
 **Exit:** `make up && make test` passes an empty suite in CI.
 
 ## Phase 1 — Quote comparison (≈5 h)
-- [ ] `pricing.py`, `ranking.py`, `eligibility.py`, `FixtureClock`/`SystemClock`
-- [ ] Fixture providers A/B with tick script, fresh id/expiry, chaos hooks (down/timeout)
-- [ ] `registry.fetch_all()` with `asyncio.gather` + `wait_for` timeout → ok / errors
-- [ ] DB: sessions, destinations, quote_snapshots; seed script
-- [ ] `POST /quotes`, `GET /health`, session cookie middleware
-- [ ] Compare screen (plain styling) with fee breakdown, expiry, ETA in user tz, labels
-- [ ] Tests Q1–Q7
+- [x] `pricing.py`, `ranking.py`, `eligibility.py`, `FixtureClock`/`SystemClock`
+- [x] Fixture providers A/B with tick script, fresh id/expiry, chaos hooks (down/timeout)
+- [x] `registry.fetch_all()` with `asyncio.gather` + `wait_for` timeout → ok / errors
+- [x] DB: sessions, destinations, quote_snapshots; seed script
+- [x] `POST /quotes`, `GET /health`, session cookie middleware
+- [x] Compare screen (plain styling) with fee breakdown, expiry, ETA in user tz, labels
+- [x] Tests Q1–Q7
 **Exit:** browser shows B beating A at 600 USDC with exact numbers.
 
 ## Phase 2 — Confirmed watches + agent (≈8 h)
