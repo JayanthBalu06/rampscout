@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     )
     cors_origins: str = "http://localhost:5173"
     intent_parses_per_hour: int = 30  # per demo session; protects the model API key
+    intent_parses_per_hour_global: int = 300
     cookie_secure: bool = False  # true when the UI is served cross-site over HTTPS
 
     demo_mode: bool = True
@@ -35,6 +36,8 @@ class Settings(BaseSettings):
     provider_timeout_ms: int = 1500
     poll_interval_seconds: int = 30
     worker_loop_seconds: float = 2.0
+    # Run the worker loop inside the web process (free hosting tiers without workers).
+    embedded_worker: bool = False
 
     # User-approved limits the agent can never exceed.
     max_authorization_usdc: Decimal = Decimal("1000")
@@ -52,6 +55,8 @@ class Settings(BaseSettings):
     demo_transfer_scale: Decimal = Decimal("0.01")
     max_onchain_transfer_usdc: Decimal = Decimal("10")
     daily_onchain_runs: int = 20
+    # Below this signer balance the app switches to the simulated ledger (one demo transfer).
+    min_signer_usdc: Decimal = Decimal("6")
     explorer_tx_url: str = "https://sepolia.basescan.org/tx/"
 
     anthropic_api_key: SecretStr = SecretStr("")

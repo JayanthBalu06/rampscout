@@ -108,9 +108,13 @@ def verify_testnet(settings: Settings) -> SettlementStatus:
         checks["gas"] = native > 0
         if native <= 0:
             problems.append("signer has no Base Sepolia ETH for gas")
-        checks["usdc_balance"] = bal > 0
-        if bal <= 0:
-            problems.append("signer has no test USDC")
+        need = int(settings.min_signer_usdc * 10**6)
+        checks["usdc_balance"] = bal >= need and bal > 0
+        if not checks["usdc_balance"]:
+            problems.append(
+                f"signer holds {usdc} test USDC, below the {settings.min_signer_usdc} "
+                "needed for a demo transfer (refill at faucet.circle.com)"
+            )
     except Exception as exc:
         log.warning("settlement.verify_failed", error=type(exc).__name__)
         problems.append(f"RPC unreachable ({type(exc).__name__})")

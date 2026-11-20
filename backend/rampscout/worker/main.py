@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import signal
 import time
+from collections.abc import Callable
 from types import FrameType
 
 import structlog
@@ -40,21 +41,25 @@ def tick_once() -> int:
     return len(outcomes)
 
 
-def main() -> None:
-    configure_logging()
+def run_forever(should_run: Callable[[], bool]) -> None:
     settings = get_settings()
-    signal.signal(signal.SIGTERM, _stop)
-    signal.signal(signal.SIGINT, _stop)
     log.info("worker.start", clock_mode=settings.clock_mode, loop_s=settings.worker_loop_seconds)
     # Startup recovery: anything left mid-flight by a crash is resolved before new work.
     log.info("worker.startup_reconcile", count=reconcile(settings))
-    while _running:
+    while should_run():
         try:
             tick_once()
         except Exception:
             log.exception("worker.loop_error")
         time.sleep(settings.worker_loop_seconds)
     log.info("worker.stopped")
+
+
+def main() -> None:
+    configure_logging()
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGINT, _stop)
+    run_forever(lambda: _running)
 
 
 if __name__ == "__main__":

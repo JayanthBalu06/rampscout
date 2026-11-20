@@ -7,6 +7,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from sqlalchemy import text
 
 from rampscout.config import Settings, get_settings
@@ -26,7 +27,18 @@ TABLES = [
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _test_db() -> Iterator[None]:
+def _hermetic_settings() -> None:
+    """Tests must never touch a real chain, wallet or model API, whatever is in .env."""
+    s = get_settings()
+    s.rpc_url = s.rpc_send_url = s.signer_address = ""
+    s.route_a_settlement_address = s.route_b_settlement_address = ""
+    s.signer_private_key = SecretStr("")
+    s.anthropic_api_key = SecretStr("")
+    s.embedded_worker = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_db(_hermetic_settings: None) -> Iterator[None]:
     url = get_settings().test_database_url
     os.environ["ALEMBIC_DATABASE_URL"] = url
     command.upgrade(Config(os.path.join(BACKEND, "alembic.ini")), "head")

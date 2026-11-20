@@ -36,25 +36,28 @@ from rampscout.services.authorizations import (
 from rampscout.settlement.factory import get_settler
 
 router = APIRouter(tags=["agent"])
-_parse_log: dict[uuid.UUID, deque[float]] = defaultdict(deque)
+_parse_log: dict[uuid.UUID | str, deque[float]] = defaultdict(deque)
 
 
-def _rate_limit(session_id: uuid.UUID, per_hour: int) -> None:
-    """Per-session cap on model calls so a public demo can't run up the API bill."""
+def _rate_limit(session_id: uuid.UUID, per_hour: int, global_per_hour: int) -> None:
+    """Per-session and global caps on model calls so a public demo can't run up the bill
+    (new visitors get new sessions, so the global cap is what really bounds spend)."""
     now = time.monotonic()
-    log = _parse_log[session_id]
-    while log and now - log[0] > 3600:
-        log.popleft()
-    if len(log) >= per_hour:
-        raise AppError(429, "rate_limited", "Too many drafts this hour; use the form instead")
-    log.append(now)
+    for key, cap in ((session_id, per_hour), ("*", global_per_hour)):
+        log = _parse_log[key]
+        while log and now - log[0] > 3600:
+            log.popleft()
+        if len(log) >= cap:
+            raise AppError(429, "rate_limited", "Too many drafts this hour; use the form instead")
+    _parse_log[session_id].append(now)
+    _parse_log["*"].append(now)
 
 
 @router.post("/intents/parse", response_model=IntentParseOut)
 def parse_intent(body: IntentParseIn, db: DbSession, session: CurrentSession) -> IntentParseOut:
     """Draft only: returns editable terms + missing/ambiguous fields. Creates nothing."""
     settings = get_settings()
-    _rate_limit(session.id, settings.intent_parses_per_hour)
+    _rate_limit(session.id, settings.intent_parses_per_hour, settings.intent_parses_per_hour_global)
     destinations = list(
         db.scalars(select(Destination).where(Destination.owner_id == session.owner_id)).all()
     )

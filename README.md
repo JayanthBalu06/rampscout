@@ -128,7 +128,7 @@ make e2e                   # 5 Playwright journeys against the Docker stack
 
 **Real testnet transfers:** [`docs/TESTNET_SETUP.md`](docs/TESTNET_SETUP.md) covers `make wallet`, the faucets, `make check-testnet`, and the verified network facts.
 
-**Deploy:** `render.yaml` is a Render blueprint (web service with API and UI on one origin, background worker, Postgres). Enter secrets in the Render dashboard.
+**Deploy:** `render.yaml` is a free-tier Render blueprint: one web service serving the API under `/api` and the UI on the same origin, with the worker loop embedded (`EMBEDDED_WORKER=true`), plus Postgres. Enter secrets in the Render dashboard. A hosted demo falls back to the labeled simulated ledger whenever the signer's test USDC drops below one transfer (`MIN_SIGNER_USDC`) or the daily cap is reached.
 
 ### Environment
 

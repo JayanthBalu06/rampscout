@@ -26,3 +26,23 @@ def test_intent_parse_is_rate_limited(client, settings):
         assert client.post("/intents/parse", json={"text": "hi"}).status_code == 200
     r = client.post("/intents/parse", json={"text": "hi"})
     assert r.status_code == 429
+
+
+def test_embedded_worker_processes_due_watches(make_watch, client, settings):
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from rampscout.api.server import create_server
+    from tests.helpers import advance_without_eval, session_id_of
+
+    settings.embedded_worker = True
+    settings.worker_loop_seconds = 0.1
+    w = make_watch()
+    advance_without_eval(session_id_of(client))
+    with TestClient(create_server()):
+        for _ in range(50):
+            if client.get(f"/authorizations/{w['id']}").json()["status"] == "notified":
+                break
+            time.sleep(0.1)
+    assert client.get(f"/authorizations/{w['id']}").json()["status"] == "notified"
