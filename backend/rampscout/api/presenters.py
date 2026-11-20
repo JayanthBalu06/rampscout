@@ -270,10 +270,16 @@ def contact_out(c: Contact) -> ContactOut:
 def route_out(r: RouteQuote | None, best_out: Decimal | None = None) -> RouteOut | None:
     if r is None:
         return None
+    # Rebuild the label from the hops (routes stored before the label fix repeated
+    # currencies for transfer/payout hops).
+    ccys = [r.from_ccy]
+    for h in r.hops:
+        if h["to_ccy"] != ccys[-1]:
+            ccys.append(h["to_ccy"])
     return RouteOut(
         route_quote_id=r.id,
         rank=r.rank,
-        path=r.path,
+        path=" → ".join(ccys),
         hops=[HopOut(**h) for h in r.hops],
         amount_in=_trim(r.amount_in),
         from_ccy=r.from_ccy,

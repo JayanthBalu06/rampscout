@@ -97,11 +97,11 @@ export function WatchDetail({
             <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
                 <dt className="text-neutral-500">Last check</dt>
-                <dd>{auth.last_check_at ? formatInTz(auth.last_check_at, tz, { date: false }) : '-'}</dd>
+                <dd>{auth.last_check_at ? formatInTz(auth.last_check_at, tz, { date: false, seconds: !!auth.contact }) : '-'}</dd>
               </div>
               <div>
                 <dt className="text-neutral-500">Next check</dt>
-                <dd>{auth.next_check_at ? formatInTz(auth.next_check_at, tz, { date: false }) : '-'}</dd>
+                <dd>{auth.next_check_at ? formatInTz(auth.next_check_at, tz, { date: false, seconds: !!auth.contact }) : '-'}</dd>
               </div>
             </dl>
           )}
@@ -138,7 +138,7 @@ export function WatchDetail({
               <dd className="inline font-mono">{formatDecimal(auth.terms.amount_usdc)} USDC</dd>
             </div>
             <div>
-              <dt className="inline text-neutral-500">{auth.mode === 'send' ? 'They receive at least: ' : 'Minimum payout: '}</dt>
+              <dt className="inline text-neutral-500">{auth.contact ? 'They receive at least: ' : 'Minimum payout: '}</dt>
               <dd className="inline font-mono">{minimumText(auth)}</dd>
             </div>
             {auth.terms.deadline_display && (
