@@ -82,6 +82,7 @@ def reconcile(settings: Settings, *, session_id: uuid.UUID | None = None) -> int
                 Authorization.mode,
                 Authorization.last_best_route,
                 Authorization.selected_quote_id,
+                Authorization.contact_id,
             )
             .outerjoin(Execution, Execution.authorization_id == Authorization.id)
             .where(Authorization.status == "claimed", Execution.id.is_(None))
@@ -94,8 +95,8 @@ def reconcile(settings: Settings, *, session_id: uuid.UUID | None = None) -> int
         pending = db.execute(q).all()
         orphans = db.execute(orphans_q).all()
 
-    for auth_id, mode, route, quote_id in orphans:
-        if mode == "send":
+    for auth_id, mode, route, quote_id, contact_id in orphans:
+        if contact_id is not None:
             from rampscout.services.send import execute_send
 
             execute_send(auth_id, settings=settings, settler=get_settler(settings))

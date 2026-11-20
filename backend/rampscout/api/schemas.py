@@ -486,3 +486,58 @@ class WalletOut(BaseModel):
     shared: bool
     note: str
     transfer_scale: str
+
+
+class AgentDraftIn(Strict):
+    text: str
+
+    @model_validator(mode="after")
+    def _len(self) -> AgentDraftIn:
+        if not self.text.strip() or len(self.text) > 1000:
+            raise ValueError("text must be 1-1000 characters")
+        return self
+
+
+class AgentDraftOut(BaseModel):
+    amount: str | None
+    contact_id: str | None
+    recipient_name: str | None
+    recipient_address: str | None
+    receive_currency: str | None
+    mode: Literal["send_now", "notify", "auto"]
+    min_out: str | None
+    deadline_local: str | None
+    time_zone: str | None
+    deadline_utc: datetime | None
+    deadline_display: str | None
+    missing: list[str]
+    ambiguities: list[AmbiguityOut]
+    assumptions: list[str]
+    source: Literal["claude", "rules"]
+    model: str | None
+    model_note: str | None
+    creates_authorization: Literal[False] = False
+
+
+class SendWatchIn(Strict):
+    contact_id: uuid.UUID
+    amount_usdc: UsdcIn
+    min_out: Annotated[
+        Decimal,
+        BeforeValidator(_decimal_string),
+        AfterValidator(_max_places(8)),
+        AfterValidator(_positive),
+    ]
+    deadline: AwareDatetime | None = None
+    deadline_local: NaiveDatetime | None = None
+    time_zone: str = "America/Mexico_City"
+    mode: Literal["notify", "auto"] = "notify"
+    intent_text: str | None = None
+
+    @model_validator(mode="after")
+    def _deadline(self) -> SendWatchIn:
+        if (self.deadline is None) == (self.deadline_local is None):
+            raise ValueError("give exactly one of deadline or deadline_local")
+        if self.intent_text is not None and len(self.intent_text) > 1000:
+            raise ValueError("intent_text must be at most 1000 characters")
+        return self

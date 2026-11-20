@@ -21,7 +21,8 @@
 | 0:10 | Paste the friend's address, tap **BTC**, amount 600. | "I paste their address and pick what they want. That's all I enter." |
 | 0:20 | Point at *routes compared*; open **How this route works**; **Show other routes**. | "RampScout priced every path through Bitso's live order books and picked USDC → USDT → BTC. Each hop walks the real order book with Bitso's real fees. Bitso has no USDC market, so that first swap is labeled as an assumption." |
 | 0:35 | **Bank account** tab → Mamá. | "Same thing for my mom's bank account in Mexico: dollars then pesos beats the alternatives by about 9 pesos right now." |
-| 0:45 | **Send** → tick the new-address check → **Confirm**. Receipt. | "It re-prices that exact route on fresh data right before sending; if she'd get less than the minimum, nothing moves. Here's the real Base Sepolia transfer and the payout matching the quote." |
+| 0:40 | **Home** → **Ask RampScout**: "Send 600 USDC to Mamá when she gets at least 11,400 pesos by 5pm". | "Or I just ask. The agent drafts it, shows she'd get 11,322 right now, which is short, so it'll watch live prices and only send once she'd get 11,400. It can never authorize itself; I confirm." |
+| 0:50 | **Send** → tick the new-address check → **Confirm**. Receipt. | "It re-prices that exact route on fresh data right before sending; if she'd get less than the minimum, nothing moves. Here's the real Base Sepolia transfer and the payout matching the quote." |
 
 **Reset between runs** with the Reset button. Each browser has its own demo clock.
 

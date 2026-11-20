@@ -27,6 +27,7 @@ from rampscout.config import Settings
 from rampscout.db.models import Authorization, Contact, DemoSession, Execution, RouteQuote
 from rampscout.db.session import SessionLocal
 from rampscout.domain.currencies import FIAT, floor_to, fmt_amount
+from rampscout.domain.decision import next_check
 from rampscout.domain.money import fmt_usdc
 from rampscout.domain.routing import Hop, Leg, RateLeg, Route, find_routes, price_path
 from rampscout.providers.bitso import Market, get_market, legs_from_market, load_recorded
@@ -240,10 +241,43 @@ def send_terms(
     }
 
 
+def send_watch_terms(
+    *,
+    mode: str,
+    amount: Decimal,
+    contact_id: uuid.UUID,
+    min_out: Decimal,
+    ccy: str,
+    deadline: datetime,
+    tz: str,
+) -> dict[str, str | None]:
+    return {
+        "mode": mode,
+        "input_usdc": format(amount.normalize(), "f"),
+        "contact_id": str(contact_id),
+        "min_out": format(min_out.normalize(), "f"),
+        "out_currency": ccy,
+        "deadline_utc": deadline.isoformat(),
+        "display_tz": tz,
+    }
+
+
 def send_hash_of(auth: Authorization) -> str:
-    assert (
-        auth.contact_id and auth.route_quote_id and auth.min_out is not None and auth.out_currency
-    )
+    assert auth.contact_id and auth.min_out is not None and auth.out_currency
+    if auth.mode != "send":
+        assert auth.deadline_utc is not None
+        return terms_hash(
+            send_watch_terms(
+                mode=auth.mode,
+                amount=auth.input_usdc,
+                contact_id=auth.contact_id,
+                min_out=auth.min_out,
+                ccy=auth.out_currency,
+                deadline=auth.deadline_utc,
+                tz=auth.display_tz,
+            )
+        )
+    assert auth.route_quote_id
     return terms_hash(
         send_terms(
             amount=auth.input_usdc,
@@ -287,9 +321,15 @@ def execute_send(
         auth = db.scalars(
             select(Authorization).where(Authorization.id == authorization_id).with_for_update()
         ).one()
-        if auth.status != "claimed" or auth.mode != "send":
+        if auth.status != "claimed" or auth.contact_id is None:
             return SendOutcome(auth.id, auth.status, "not a claimed send")
-        now = clock_for_auth(db, auth, settings).now()
+        is_watch = auth.mode != "send"
+        if is_watch:
+            from rampscout.agent.send_watch import now_utc
+
+            now = now_utc()
+        else:
+            now = clock_for_auth(db, auth, settings).now()
         contact = db.get(Contact, auth.contact_id)
         quoted = db.get(RouteQuote, auth.route_quote_id)
         assert contact is not None and quoted is not None
@@ -325,9 +365,23 @@ def execute_send(
         failures += settler.preflight("SEND", amount_onchain, recipient)
 
         if failures or fresh is None:
-            reason = f"Not sent: {'; '.join(failures)}. Get a fresh route and confirm again."
-            auth.status = "requote_required"
-            auth.closed_at = now
+            if is_watch and auth.deadline_utc is not None and now < auth.deadline_utc:
+                reason = (
+                    f"Re-check before sending failed ({'; '.join(failures)}). Claim released; "
+                    "still watching."
+                )
+                auth.status = "watching"
+                auth.next_check_at = next_check(
+                    now + timedelta(seconds=settings.poll_interval_seconds), auth.deadline_utc
+                )
+            elif is_watch:
+                reason = f"Re-check before sending failed ({'; '.join(failures)}). Deadline passed."
+                auth.status = "expired"
+                auth.closed_at = now
+            else:
+                reason = f"Not sent: {'; '.join(failures)}. Get a fresh route and confirm again."
+                auth.status = "requote_required"
+                auth.closed_at = now
             auth.claimed_at = None
             auth.version += 1
             auth.last_reason = reason

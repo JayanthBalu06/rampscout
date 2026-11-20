@@ -205,3 +205,22 @@ def mark_read(notification_id: uuid.UUID, db: DbSession, session: CurrentSession
     if n.read_at is None:
         n.read_at = clock_for_session(session, get_settings()).now()
         db.commit()
+
+
+@router.post("/authorizations/{authorization_id}/check", response_model=AuthorizationOut)
+def post_check_now(
+    authorization_id: uuid.UUID, db: DbSession, session: CurrentSession
+) -> AuthorizationOut:
+    """Run the agent's check for this watch immediately (same code as the worker)."""
+    from rampscout.agent.evaluate import check_now
+
+    settings = get_settings()
+    auth = db.get(Authorization, authorization_id)
+    if auth is None or auth.session_id != session.id:
+        raise AppError(404, "not_found", "Authorization not found")
+    if auth.status == "watching":
+        check_now(auth.id, settings)
+    db.expire_all()
+    final = db.get(Authorization, authorization_id)
+    assert final is not None
+    return authorization_out(db, final, settings)

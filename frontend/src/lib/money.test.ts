@@ -27,3 +27,12 @@ describe('formatAmount', () => {
     expect(formatAmount('BTC', '0.00198440')).toBe('0.0019844 BTC')
   })
 })
+
+import { suggestTarget } from './targets'
+
+describe('suggestTarget', () => {
+  it('adds 0.2% and floors to currency precision using integer math', () => {
+    expect(suggestTarget('11327.44', 'MXN')).toBe('11350.09')
+    expect(suggestTarget('0.01003384', 'BTC')).toBe('0.01005390')
+  })
+})

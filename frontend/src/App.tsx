@@ -26,6 +26,9 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [showDemo, setShowDemo] = useState(false)
+  // Detail pages show the demo clock only for fixture-based authorizations (live sends
+  // and send-when watches run on real time).
+  const [detailUsesDemoClock, setDetailUsesDemoClock] = useState(true)
   const [path, navigate] = useHashRoute()
 
   useEffect(() => {
@@ -35,7 +38,12 @@ export default function App() {
   async function run(p: string, body?: unknown) {
     setBusy(true)
     try {
-      setDemo(await api<DemoState>(p, { method: 'POST', body: body ? JSON.stringify(body) : undefined }))
+      setDemo(
+        await api<DemoState>(p, {
+          method: 'POST',
+          body: body ? JSON.stringify(body) : undefined,
+        }),
+      )
       setRefreshKey((k) => k + 1)
       if (p === '/demo/reset' && !path.startsWith('/compare')) navigate('/compare')
     } finally {
@@ -82,7 +90,7 @@ export default function App() {
               <span className="block text-xs text-neutral-500">Send USDC anywhere. We find the best route.</span>
             </span>
           </a>
-          {!agentPage && !detailId && (
+          {!agentPage && !(detailId && detailUsesDemoClock) && (
             <button
               type="button"
               onClick={() => setShowDemo((v) => !v)}
@@ -107,7 +115,7 @@ export default function App() {
           ))}
         </nav>
 
-        {(agentPage || !!detailId || showDemo) && demoBar}
+        {(agentPage || (!!detailId && detailUsesDemoClock) || showDemo) && demoBar}
         <NotificationBanner refreshKey={refreshKey} />
 
         {agentPage && (
@@ -131,7 +139,7 @@ export default function App() {
         )}
 
         {detailId ? (
-          <WatchDetail id={detailId} refreshKey={refreshKey} />
+          <WatchDetail id={detailId} refreshKey={refreshKey} onLoaded={(a) => setDetailUsesDemoClock(!a.contact)} />
         ) : path.startsWith('/compare') ? (
           <Compare refreshKey={refreshKey} onConverted={(id) => navigate(`/a/${id}`)} />
         ) : path.startsWith('/watch/new') ? (
@@ -143,7 +151,7 @@ export default function App() {
         ) : tab === 'activity' ? (
           <WatchList refreshKey={refreshKey} title="Activity" emptyText="Nothing yet." />
         ) : (
-          <Home refreshKey={refreshKey} />
+          <Home refreshKey={refreshKey} onCreated={(id) => navigate(`/a/${id}`)} />
         )}
       </main>
     </div>

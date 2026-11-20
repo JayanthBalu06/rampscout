@@ -10,9 +10,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -44,11 +45,17 @@ class Outcome:
 def claim_next_due(
     db: Session, settings: Settings, session_id: uuid.UUID | None = None
 ) -> Authorization | None:
+    # Fixture watches follow their session's demo clock; send watches (live market) follow
+    # the real clock.
     due_by = DemoSession.clock_now if settings.clock_mode == "fixture" else func.now()
+    due = or_(
+        and_(Authorization.contact_id.is_(None), Authorization.next_check_at <= due_by),
+        and_(Authorization.contact_id.is_not(None), Authorization.next_check_at <= func.now()),
+    )
     q = (
         select(Authorization)
         .join(DemoSession, DemoSession.id == Authorization.session_id)
-        .where(Authorization.status == "watching", Authorization.next_check_at <= due_by)
+        .where(Authorization.status == "watching", due)
         .order_by(Authorization.next_check_at)
         .limit(1)
         .with_for_update(of=Authorization, skip_locked=True)
@@ -206,6 +213,9 @@ def run_due(
             session = db.get(DemoSession, auth.session_id)
             assert session is not None
             chaos = dict(session.chaos_flags or {})
+            if auth.contact_id is not None:
+                outcomes.append(_run_send_watch(db, auth, settings, settler))
+                continue
             try:
                 outcome, route = evaluate_locked(db, auth, settings, factory(settings, chaos))
                 db.commit()
@@ -226,6 +236,55 @@ def run_due(
     return outcomes
 
 
+def _run_send_watch(
+    db: Session, auth: Authorization, settings: Settings, settler: Settler
+) -> Outcome:
+    from rampscout.agent.send_watch import evaluate_send_watch_locked
+    from rampscout.services.send import execute_send
+    from rampscout.settlement.chain_settler import ChainSettler
+
+    chain_settler = settler if isinstance(settler, ChainSettler) else get_settler(settings)
+    auth_id = auth.id
+    try:
+        status, reason, execute = evaluate_send_watch_locked(db, auth, settings, chain_settler.mode)
+        db.commit()
+    except Exception:
+        db.rollback()
+        log.exception("send_watch.evaluate_failed", authorization_id=str(auth_id))
+        return _defer_after_error(auth_id, settings)
+    if execute:
+        out = execute_send(auth_id, settings=settings, settler=chain_settler)
+        return Outcome(out.authorization_id, out.status, out.reason)
+    return Outcome(auth_id, status, reason)
+
+
+def check_now(authorization_id: uuid.UUID, settings: Settings) -> Outcome | None:
+    """Evaluate one watch immediately (the UI's "Check now"); same code as the worker."""
+    with SessionLocal() as db:
+        auth = db.scalars(
+            select(Authorization)
+            .where(Authorization.id == authorization_id)
+            .with_for_update(skip_locked=True)
+        ).one_or_none()
+        if auth is None or auth.status != "watching":
+            db.rollback()
+            return None
+        if auth.contact_id is not None:
+            return _run_send_watch(db, auth, settings, get_settler(settings))
+        session = db.get(DemoSession, auth.session_id)
+        assert session is not None
+        outcome, route = evaluate_locked(
+            db, auth, settings, providers_for(settings, dict(session.chaos_flags or {}))
+        )
+        db.commit()
+    if route is not None:
+        ex = execute_claimed(
+            authorization_id, settings=settings, settler=get_settler(settings), route_id=route
+        )
+        return Outcome(ex.authorization_id, ex.status, ex.reason)
+    return outcome
+
+
 def _defer_after_error(authorization_id: uuid.UUID, settings: Settings) -> Outcome:
     """An unexpected error must never stall or silently drop a watch: log it, push the
     next check out one interval, and keep the audit trail honest."""
@@ -233,8 +292,15 @@ def _defer_after_error(authorization_id: uuid.UUID, settings: Settings) -> Outco
         auth = db.scalars(
             select(Authorization).where(Authorization.id == authorization_id).with_for_update()
         ).one()
-        now = clock_for_auth(db, auth, settings).now()
-        auth.next_check_at = next_check(now + check_interval(settings), auth.deadline_utc)
+        if auth.contact_id is not None:
+            from rampscout.agent.send_watch import now_utc
+
+            now = now_utc()
+            interval = timedelta(seconds=settings.poll_interval_seconds)
+        else:
+            now = clock_for_auth(db, auth, settings).now()
+            interval = check_interval(settings)
+        auth.next_check_at = next_check(now + interval, auth.deadline_utc)
         auth.last_reason = "Internal error during this check; will retry next interval."
         record(db, auth, now, "check_failed", auth.last_reason)
         db.commit()

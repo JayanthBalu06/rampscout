@@ -5,6 +5,8 @@ import { HopTable, PathChips, SourceBadge } from '../components/RouteView'
 import { formatAmount, formatDecimal } from '../lib/money'
 import { formatInTz } from '../lib/time'
 import { short, useWallet } from '../lib/useWallet'
+import { confirmContact, startSendWatch } from '../lib/sendApi'
+import { DECIMALS_HINT, suggestTarget } from '../lib/targets'
 
 const TZ = 'America/Mexico_City'
 const inputCls = 'mt-1 w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 dark:border-neutral-700'
@@ -144,7 +146,22 @@ export function Send({ onSent, refreshKey }: { onSent: (id: string) => void; ref
   const keyRef = useRef(crypto.randomUUID())
 
   useEffect(() => {
-    api<Contact[]>('/contacts').then(setContacts)
+    api<Contact[]>('/contacts').then((cs) => {
+      setContacts(cs)
+      // Prefill from the agent: #/send?to=<contactId>&amount=600
+      const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+      const amt = params.get('amount')
+      if (amt) setAmount(amt)
+      const c = cs.find((x) => x.id === params.get('to'))
+      if (c?.kind === 'bank') {
+        setTo('bank')
+        setBankId(c.id)
+      } else if (c?.wallet_address) {
+        setTo('wallet')
+        setAddress(c.wallet_address)
+        setToken(c.currency as (typeof TOKENS)[number])
+      }
+    })
   }, [])
 
   const savedWallets = contacts.filter((c) => c.kind === 'wallet' && c.status === 'confirmed')
@@ -424,6 +441,17 @@ export function Send({ onSent, refreshKey }: { onSent: (id: string) => void; ref
         </div>
       )}
 
+      {best && data && contact && (
+        <WaitForBetter
+          key={contact.id + data.amount_usdc}
+          contact={contact}
+          amount={data.amount_usdc}
+          bestOut={best.amount_out}
+          ccy={best.to_ccy}
+          onCreated={onSent}
+        />
+      )}
+
       {best && data?.routes.some((r) => r.hops.some((h) => h.source === 'assumption')) && (
         <p className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
           <SourceBadge source="assumption" /> Bitso lists no USDC market, so USDC enters through an assumed 1:1 stablecoin swap. Exchange legs use{' '}
@@ -482,5 +510,120 @@ export function Send({ onSent, refreshKey }: { onSent: (id: string) => void; ref
         </div>
       )}
     </section>
+  )
+}
+
+function WaitForBetter({
+  contact,
+  amount,
+  bestOut,
+  ccy,
+  onCreated,
+}: {
+  contact: Contact
+  amount: string
+  bestOut: string
+  ccy: string
+  onCreated: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [minOut, setMinOut] = useState(() => suggestTarget(bestOut, ccy))
+  const [deadline, setDeadline] = useState(() => {
+    const d = new Date(Date.now() + 2 * 3600_000)
+    const local = new Date(d.toLocaleString('en-US', { timeZone: TZ }))
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`
+  })
+  const [mode, setMode] = useState<'notify' | 'auto'>('notify')
+  const [checked, setChecked] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function start() {
+    setBusy(true)
+    setError(null)
+    try {
+      if (contact.status === 'pending') await confirmContact(contact.id)
+      const a = await startSendWatch({
+        contact_id: contact.id,
+        amount_usdc: amount,
+        min_out: minOut.trim(),
+        deadline_local: `${deadline}:00`,
+        time_zone: TZ,
+        mode,
+      })
+      onCreated(a.id)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-violet-300 p-4 dark:border-violet-900">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center gap-2 text-left">
+        <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-xs text-white">
+          ✦
+        </span>
+        <span className="font-medium">Or let the agent wait for a better price</span>
+        <span className="ml-auto text-xs text-neutral-500">{open ? 'Hide' : 'Set a target'}</span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3 text-sm">
+          <p className="text-neutral-500">
+            The agent re-checks live routes every 30 seconds until {contact.name} would get your minimum, then notifies you or sends. Waiting can
+            end with a worse price or nothing sent.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="font-medium">Only if they receive at least ({ccy})</span>
+              <input inputMode="decimal" value={minOut} onChange={(e) => setMinOut(e.target.value)} className={`${inputCls} font-mono`} />
+              <span className="text-xs text-neutral-500">
+                Now: {formatAmount(ccy, bestOut)} · {DECIMALS_HINT[ccy] ?? ''}
+              </span>
+            </label>
+            <label className="block">
+              <span className="font-medium">Deadline (Mexico City time)</span>
+              <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputCls} />
+            </label>
+          </div>
+          <fieldset className="grid grid-cols-2 gap-2">
+            <legend className="sr-only">When the target is met</legend>
+            {(
+              [
+                ['notify', 'Notify me', 'Alert only; nothing sends.'],
+                ['auto', 'Auto-send', 'Sends automatically, never below your minimum.'],
+              ] as const
+            ).map(([v, label, hint]) => (
+              <label key={v} className={`cursor-pointer rounded-lg border p-2 ${mode === v ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'border-neutral-300 dark:border-neutral-700'}`}>
+                <input type="radio" name="wait-mode" className="mr-1.5" checked={mode === v} onChange={() => setMode(v)} />
+                <span className="font-medium">{label}</span>
+                <span className="block text-xs text-neutral-500">{hint}</span>
+              </label>
+            ))}
+          </fieldset>
+          {contact.status === 'pending' && (
+            <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5" />
+              <span>New address. I've checked every character.</span>
+            </label>
+          )}
+          {error && (
+            <p role="alert" className="text-red-700 dark:text-red-300">
+              {error}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={start}
+            disabled={busy || !minOut.trim() || !deadline || (contact.status === 'pending' && !checked)}
+            className="rounded-md bg-violet-600 px-4 py-2 font-medium text-white disabled:opacity-50"
+          >
+            {busy ? 'Starting…' : 'Start watching'}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

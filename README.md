@@ -43,6 +43,7 @@ Users can convert now, or ask the agent: *"Convert 600 USDC if I can receive at 
   …  USDC → USDT → BTC → MXN    MX$11,268.60   (−MX$58.84)
 ```
 
+- **Ask the agent, right in the wallet.** Type *"Send 600 USDC to Mamá when she gets at least 11,400 pesos by 5pm"* into **Ask RampScout** on Home. Claude (or a deterministic parser without an API key) drafts it; the server validates every field; you see what she'd get *right now* on live Bitso and choose **Notify** or **Auto-send**. The same option sits under every best route on Send: **"Or let the agent wait for a better price."** The agent then re-checks live routes every 30 s on the real clock, notifies you or sends once the minimum is met, re-prices the exact route before signing, never acts on stale data, and closes the watch at the deadline without sending.
 - **New addresses are confirmed once.** A pasted address can be quoted immediately, but the first send to it requires ticking "I've checked every character"; it's then saved. Sends only ever target saved, confirmed recipients by ID, and the model never touches them.
 - **Exact, not approximate.** Each exchange hop walks the real order book level by level (depth and slippage included), charges Bitso's published taker fee for that market, and rounds down to the currency's minor unit, because each hop is a separate trade. With a handful of currencies, exhaustive search over simple paths is exact and takes milliseconds. Shortest-path shortcuts like Dijkstra over −log(rate) are only correct when every fee is a pure percentage, and fixed fees, book depth and per-hop rounding break that (`test_routing.py::test_fixed_fee_flips_ranking_by_size`).
 - **Honest about gaps.** Bitso lists no USDC market, so USDC enters through a stablecoin-swap leg explicitly labeled *assumption* (1:1, 0.05% fee, configurable). If Bitso is unreachable, a recorded snapshot is used and flagged.
@@ -152,9 +153,9 @@ make web                   # Vite on :5173, proxies /api → :8000
 **Tests:**
 
 ```bash
-make test                  # 122 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
+make test                  # 134 backend tests (pytest against Postgres) + frontend unit tests (Vitest)
 make lint                  # ruff, mypy (strict on the domain layer), oxlint, tsc
-make e2e                   # 9 Playwright journeys against the Docker stack
+make e2e                   # 13 Playwright journeys against the Docker stack
 ```
 
 **Demo:** [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) is the two-minute talk track. `make demo` runs the same journey in a terminal.
@@ -189,6 +190,7 @@ What was actually run while building this, as opposed to what is only designed:
 
 | Flow | Status |
 |---|---|
+| Agent in the wallet: plain-English send drafts, send-when watches on live routes (notify/auto, re-price before signing, expiry, cancel) | ✅ unit, API and browser tests (rules parser; Claude path mocked) |
 | Send: live multi-hop routing to MXN, ARS, COP and USDC wallet contacts; re-price before signing; contact validation | ✅ unit, API and browser tests (recorded snapshot); live Bitso routing exercised in the browser |
 | Send on Base Sepolia (bank route) | ✅ live Bitso route USDC → USD → MXN re-priced and paid; 0.60 USDC transfer [`0xd510…3fa7`](https://sepolia.basescan.org/tx/0xd510fe1c1118965c1a324b4c6b6208ad630e4d8e412f9a801950731433c23fa7) (block 61351171) |
 | Quote comparison, the brief's exact payouts, exclusions, provider outage and timeout | ✅ unit, API and browser tests |
@@ -209,7 +211,7 @@ What was actually run while building this, as opposed to what is only designed:
 - **Measured outcomes:** backtest the watch policy against immediate best-route execution over the same historical start times, counting expired watches and worse-than-immediate outcomes. None of the prototype's numbers are measured market outcomes.
 - Real execution on the exchange legs (authenticated Bitso trading and SPEI withdrawals); today those legs are priced live but settled as a simulation.
 - A live USDC entry price (DEX quote on Base) instead of the labeled 1:1 assumption.
-- Live data for the watch agent (it uses the reproducible fixtures today).
+- The Agent tab's original Compare/Watch demo still uses the reproducible fixtures; the wallet's agent uses live data.
 - User-paid gas: the payout formula already has the `gas_cost_usdc` term, so ranking would account for it with no refactor.
 - MXN → USDC direction, more chains, real accounts and auth, and KYC.
 

@@ -53,7 +53,7 @@ export function Receipt({ auth }: { auth: Authorization }) {
           <dl>
             <Row k="Mode" v={modeLabel(auth)} />
             <Row k="Total debit" v={`${formatDecimal(auth.terms.amount_usdc)} USDC`} mono />
-            <Row k={auth.mode === 'send' ? 'They receive at least' : 'Minimum payout'} v={minimumText(auth)} mono />
+            <Row k={auth.contact ? 'They receive at least' : 'Minimum payout'} v={minimumText(auth)} mono />
             <Row k="Recipient" v={recipientText(auth)} />
             <Row k="Confirmed" v={formatInTz(auth.confirmed_at, tz)} />
           </dl>

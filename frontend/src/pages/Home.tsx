@@ -1,3 +1,4 @@
+import { AgentBox } from '../components/AgentBox'
 import { WalletCard } from '../components/WalletCard'
 import { useWallet } from '../lib/useWallet'
 import { WatchList } from './WatchList'
@@ -9,11 +10,12 @@ const ACTIONS: Array<[string, string, string]> = [
   ['#/watch/new', '⏱', 'Watch'],
 ]
 
-export function Home({ refreshKey }: { refreshKey: number }) {
+export function Home({ refreshKey, onCreated }: { refreshKey: number; onCreated: (id: string) => void }) {
   const { wallet, refresh } = useWallet(refreshKey)
   return (
     <div className="space-y-6">
       <WalletCard wallet={wallet} onRefresh={refresh} />
+      <AgentBox onCreated={onCreated} />
       <nav aria-label="Wallet actions" className="grid grid-cols-4 gap-3">
         {ACTIONS.map(([href, icon, label]) => (
           <a

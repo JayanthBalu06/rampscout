@@ -128,3 +128,52 @@ test('send USDC to a saved wallet is a direct onchain transfer', async ({ page }
   await page.getByRole('button', { name: 'Confirm and send' }).click()
   await expect(page.getByText('Delivered to wallet onchain')).toBeVisible()
 })
+
+test('ask the agent: send now opens Send with the best route prefilled', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/home')
+  await page.getByRole('button', { name: 'Send 600 USDC to Mamá', exact: true }).click()
+  await expect(page.getByText(/Send now:/)).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('link', { name: 'Review and send' }).click()
+  await expect(page.getByText(/Mamá receives/)).toBeVisible({ timeout: 20_000 })
+})
+
+test('ask the agent: a high target waits; check now; cancel', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/home')
+  await page.getByRole('textbox', { name: 'Ask RampScout' }).fill('Send 600 USDC to Mamá when she gets at least 99,999 pesos by tomorrow 11pm')
+  await page.getByRole('button', { name: 'Ask', exact: true }).click()
+  await expect(page.getByText(/Below your minimum, so the agent will wait/)).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Confirm and start watching' }).click()
+  await expect(page.getByText(/short of MX\$99,999.00/).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Check now' }).click()
+  await expect(page.getByText(/short of MX\$99,999.00/).first()).toBeVisible()
+  page.once('dialog', (d) => d.accept())
+  await page.getByRole('button', { name: 'Cancel watch' }).click()
+  await expect(page.getByText('Canceled').first()).toBeVisible()
+})
+
+test('ask the agent: auto-send fires when the target is already met', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/home')
+  await page
+    .getByRole('textbox', { name: 'Ask RampScout' })
+    .fill('Automatically send 600 USDC to Mamá when she gets at least 100 pesos by tomorrow 11pm')
+  await page.getByRole('button', { name: 'Ask', exact: true }).click()
+  await expect(page.getByText('Already meets your minimum.')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByLabel(/Auto-send/)).toBeChecked()
+  await page.getByRole('button', { name: 'Confirm and start watching' }).click()
+  await expect(page.getByRole('heading', { name: 'Receipt' })).toBeVisible()
+  await expect(page.getByText('Posted to bank (simulated SPEI)')).toBeVisible()
+})
+
+test('send screen: let the agent wait for a better price', async ({ page }) => {
+  await freshSession(page)
+  await page.goto('/#/send')
+  await page.getByRole('tab', { name: 'Bank account' }).click()
+  await expect(page.getByText(/Mamá receives/)).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: /let the agent wait/ }).click()
+  await page.getByRole('button', { name: 'Start watching' }).click()
+  await expect(page.getByText(/short of/).first()).toBeVisible()
+  await expect(page.getByText('Agent · notify')).toBeVisible()
+})

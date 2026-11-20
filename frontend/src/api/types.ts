@@ -299,3 +299,23 @@ export interface Wallet {
   note: string
   transfer_scale: Decimal
 }
+
+export interface AgentDraft {
+  amount: Decimal | null
+  contact_id: string | null
+  recipient_name: string | null
+  recipient_address: string | null
+  receive_currency: string | null
+  mode: 'send_now' | 'notify' | 'auto'
+  min_out: Decimal | null
+  deadline_local: string | null
+  time_zone: string | null
+  deadline_utc: string | null
+  deadline_display: string | null
+  missing: string[]
+  ambiguities: Array<{ field: string; question: string }>
+  assumptions: string[]
+  source: 'claude' | 'rules'
+  model: string | null
+  model_note: string | null
+}

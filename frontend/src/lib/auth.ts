@@ -2,7 +2,11 @@ import type { Authorization } from '../api/types'
 import { formatAmount, formatDecimal, formatMXN } from './money'
 
 export const modeLabel = (a: Authorization) =>
-  ({ send: 'Send', immediate: 'Convert now', auto: 'Auto-convert', notify: 'Notify' })[a.mode]
+  a.contact && a.mode !== 'send'
+    ? a.mode === 'auto'
+      ? 'Agent · auto-send'
+      : 'Agent · notify'
+    : ({ send: 'Send', immediate: 'Convert now', auto: 'Auto-convert', notify: 'Notify' })[a.mode]
 
 export const recipientText = (a: Authorization) =>
   a.contact
@@ -21,4 +25,6 @@ export const minimumText = (a: Authorization) =>
 export const headline = (a: Authorization) =>
   a.mode === 'send'
     ? `Send: ${formatDecimal(a.terms.amount_usdc)} USDC → ${a.contact?.name ?? 'contact'}`
+    : a.contact
+      ? `Send when: ${formatDecimal(a.terms.amount_usdc)} USDC → ${a.contact.name} ≥ ${minimumText(a)}`
     : `${a.mode === 'immediate' ? 'Conversion' : 'Watch'}: ${formatDecimal(a.terms.amount_usdc)} USDC → ≥ ${minimumText(a)}`

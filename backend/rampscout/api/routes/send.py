@@ -22,6 +22,9 @@ from rampscout.api.presenters import (
     settlement_out,
 )
 from rampscout.api.schemas import (
+    AgentDraftIn,
+    AgentDraftOut,
+    AmbiguityOut,
     AuthorizationOut,
     ContactIn,
     ContactOut,
@@ -29,6 +32,7 @@ from rampscout.api.schemas import (
     SendIn,
     SendRoutesIn,
     SendRoutesOut,
+    SendWatchIn,
     WalletOut,
 )
 from rampscout.api.session_dep import CurrentSession
@@ -327,3 +331,167 @@ def wallet(db: DbSession, session: CurrentSession) -> WalletOut:
         note=st.reason,
         transfer_scale=scale,
     )
+
+
+@router.post("/agent/draft", response_model=AgentDraftOut)
+def agent_draft(body: AgentDraftIn, db: DbSession, session: CurrentSession) -> AgentDraftOut:
+    """Plain English -> an editable send draft (now, or when a target is met). Creates nothing."""
+    from rampscout.agent.send_intent import draft_send
+    from rampscout.agent.send_watch import now_utc
+    from rampscout.api.routes.authorizations import _rate_limit
+    from rampscout.demo import DEMO_DISPLAY_TZ
+
+    settings = get_settings()
+    _rate_limit(session.id, settings.intent_parses_per_hour, settings.intent_parses_per_hour_global)
+    seed_contacts(db, session, settings)
+    contacts = list(db.scalars(select(Contact).where(Contact.session_id == session.id)).all())
+    d = draft_send(
+        body.text, now_utc=now_utc(), user_tz=DEMO_DISPLAY_TZ, contacts=contacts, settings=settings
+    )
+    return AgentDraftOut(
+        amount=d.amount,
+        contact_id=d.contact_id,
+        recipient_name=d.recipient_name,
+        recipient_address=d.recipient_address,
+        receive_currency=d.receive_currency,
+        mode=d.mode,
+        min_out=d.min_out,
+        deadline_local=d.deadline_local,
+        time_zone=d.time_zone,
+        deadline_utc=d.deadline_utc,
+        deadline_display=d.deadline_display,
+        missing=d.missing,
+        ambiguities=[AmbiguityOut(field=a["field"], question=a["question"]) for a in d.ambiguities],
+        assumptions=d.assumptions,
+        source=d.source,
+        model=d.model,
+        model_note=d.model_note,
+    )
+
+
+@router.post("/send/watch", response_model=AuthorizationOut, status_code=201)
+def send_watch(
+    body: SendWatchIn,
+    db: DbSession,
+    session: CurrentSession,
+    response: Response,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> AuthorizationOut:
+    """Authorize the agent to send when the recipient would receive at least `min_out`
+    before the deadline (notify = alert only; auto = send automatically)."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    from rampscout.agent.evaluate import check_now
+    from rampscout.agent.send_watch import now_utc
+    from rampscout.domain.clock import DeadlineResolutionError, resolve_local_deadline
+    from rampscout.domain.currencies import DECIMALS, floor_to
+    from rampscout.services.send import send_watch_terms
+
+    settings = get_settings()
+    if not idempotency_key or len(idempotency_key) > 100:
+        raise AppError(422, "idempotency_key_required", "Send an Idempotency-Key header")
+    try:
+        contact = get_confirmed(db, session, body.contact_id)
+    except ContactError as exc:
+        raise _contact_error(exc) from exc
+    try:
+        ZoneInfo(body.time_zone)
+        deadline = body.deadline or resolve_local_deadline(body.deadline_local, body.time_zone)  # type: ignore[arg-type]
+    except (KeyError, ValueError, DeadlineResolutionError) as exc:
+        raise AppError(422, "invalid_deadline", str(exc)) from exc
+    now = now_utc()
+    if deadline <= now:
+        raise AppError(422, "deadline_in_past", "The deadline has already passed")
+    if deadline > now + timedelta(days=settings.max_watch_days):
+        raise AppError(
+            422, "deadline_too_far", f"Watches can run at most {settings.max_watch_days} days"
+        )
+    if body.amount_usdc > settings.max_authorization_usdc:
+        raise AppError(422, "over_limit", f"Limited to {settings.max_authorization_usdc} USDC")
+    if body.min_out != floor_to(contact.currency, body.min_out) or DECIMALS[contact.currency] < 0:
+        raise AppError(
+            422, "too_precise", f"{contact.currency} has {DECIMALS[contact.currency]} decimals"
+        )
+
+    terms = send_watch_terms(
+        mode=body.mode,
+        amount=body.amount_usdc,
+        contact_id=contact.id,
+        min_out=body.min_out,
+        ccy=contact.currency,
+        deadline=deadline,
+        tz=body.time_zone,
+    )
+    digest = terms_hash(terms)
+    existing = db.scalars(
+        select(Authorization).where(
+            Authorization.owner_id == session.owner_id,
+            Authorization.idempotency_key == idempotency_key,
+        )
+    ).one_or_none()
+    if existing is not None:
+        if existing.terms_hash != digest:
+            raise AppError(422, "idempotency_key_reused", "Key already used with different terms")
+        response.headers["Idempotent-Replay"] = "true"
+        return authorization_out(db, existing, settings)
+
+    from sqlalchemy.dialects.postgresql import insert
+
+    inserted = db.execute(
+        insert(Authorization)
+        .values(
+            id=uuid.uuid4(),
+            owner_id=session.owner_id,
+            session_id=session.id,
+            idempotency_key=idempotency_key,
+            terms_hash=digest,
+            mode=body.mode,
+            status="watching",
+            version=1,
+            input_usdc=body.amount_usdc,
+            display_tz=body.time_zone,
+            deadline_utc=deadline,
+            contact_id=contact.id,
+            out_currency=contact.currency,
+            min_out=body.min_out,
+            intent_text=body.intent_text,
+            next_check_at=now,
+            confirmed_at=now,
+            event_count=0,
+        )
+        .on_conflict_do_nothing(index_elements=["owner_id", "idempotency_key"])
+        .returning(Authorization.id)
+    ).scalar_one_or_none()
+    if inserted is None:
+        db.rollback()
+        winner = db.scalars(
+            select(Authorization).where(
+                Authorization.owner_id == session.owner_id,
+                Authorization.idempotency_key == idempotency_key,
+            )
+        ).one()
+        return authorization_out(db, winner, settings)
+    auth = db.scalars(
+        select(Authorization).where(Authorization.id == inserted).with_for_update()
+    ).one()
+    from rampscout.agent.intent import format_deadline
+
+    record(
+        db,
+        auth,
+        now,
+        "confirmed",
+        f"You confirmed: send {body.amount_usdc} USDC to {contact.name} "
+        f"({contact.account_masked}) when they'd receive at least "
+        f"{fmt_amount(contact.currency, body.min_out)}, "
+        f"by {format_deadline(deadline, body.time_zone)}. "
+        f"Mode: {'Auto-send' if body.mode == 'auto' else 'Notify me (never sends on its own)'}.",
+        payload={"terms": terms},
+    )
+    db.commit()
+    check_now(auth.id, settings)  # first decision right away, same code as the worker
+    db.expire_all()
+    final = db.get(Authorization, auth.id)
+    assert final is not None
+    return authorization_out(db, final, settings)

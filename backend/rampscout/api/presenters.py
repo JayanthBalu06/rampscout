@@ -226,9 +226,13 @@ def authorization_out(db: Session, auth: Authorization, settings: Settings) -> A
         out_currency=auth.out_currency,
         min_out=auth.min_out,
         route=route_out(
-            db.get(RouteQuote, ex.quote_id if ex and auth.mode == "send" else auth.route_quote_id)
+            db.get(RouteQuote, ex.quote_id)
+            if ex is not None and auth.contact_id
+            else db.get(RouteQuote, auth.route_quote_id)
+            if auth.route_quote_id
+            else None
         )
-        if auth.mode == "send"
+        if auth.contact_id
         else None,
     )
 
