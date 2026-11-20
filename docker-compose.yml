@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rampscout
+      POSTGRES_PASSWORD: rampscout
+      POSTGRES_DB: rampscout
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rampscout"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  pgdata:
