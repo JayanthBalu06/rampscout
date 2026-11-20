@@ -26,7 +26,8 @@ def recorded_for_watches(monkeypatch):
     """Watches insist on live data; in tests 'live' is the recorded snapshot."""
     from rampscout.providers import bitso
 
-    monkeypatch.setattr(bitso, "get_market", lambda source, **kw: bitso.load_recorded())
+    # Patch where it's used (send.py imported the name), not just where it's defined.
+    monkeypatch.setattr(send_mod, "get_market", lambda source, **kw: bitso.load_recorded())
 
 
 def contacts(client):

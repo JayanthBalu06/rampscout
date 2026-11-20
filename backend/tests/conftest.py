@@ -105,3 +105,15 @@ def make_watch(client, destination_id):
         return r.json()
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _no_live_market(monkeypatch):
+    """Tests must never reach Bitso over the network (results would depend on live prices)."""
+    from rampscout.providers import bitso
+
+    async def refuse(*args, **kwargs):
+        raise AssertionError("test tried to fetch live Bitso data; use the recorded snapshot")
+
+    monkeypatch.setattr(bitso, "fetch_market", refuse)
+    monkeypatch.setattr(bitso, "_cache", None)
